@@ -69,6 +69,12 @@ const RUM = {
     motiv: '<path d="M12 3c1.6 2.2 2.6 3.7 2.6 5a2.6 2.6 0 0 1-5.2 0c0-1.3 1-2.8 2.6-5z" class="fylld"/><path d="M12 12c-3 2-5 4-4 7 1 2 3 1 4-1 1 2 3 3 4 1 1-3-1-5-4-7z"/>',
     ladda: () => import('./luckor/10-blackdroppen.js'),
   },
+  11: {
+    namn: 'Mossan',
+    farg: '#a8c98a',
+    motiv: '<path d="M4 20c2-1 3-4 5-4s2 3 4 3 2-5 4-5 2 4 3 6"/><circle cx="8" cy="12" r="2" class="fylld"/><circle cx="13" cy="9" r="2.6" class="fylld"/><circle cx="17.5" cy="12.5" r="1.6" class="fylld"/>',
+    ladda: () => import('./luckor/11-mossan.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
