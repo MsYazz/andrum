@@ -75,6 +75,13 @@ const RUM = {
     motiv: '<path d="M4 20c2-1 3-4 5-4s2 3 4 3 2-5 4-5 2 4 3 6"/><circle cx="8" cy="12" r="2" class="fylld"/><circle cx="13" cy="9" r="2.6" class="fylld"/><circle cx="17.5" cy="12.5" r="1.6" class="fylld"/>',
     ladda: () => import('./luckor/11-mossan.js'),
   },
+  12: {
+    namn: 'Norrskenet',
+    farg: '#8fe0b6',
+    motiv: '<path d="M3 12c3-4 5 1 9-3s6 0 9-3"/><path d="M5 11v-4M9 10V5M13 8V4M17 8V3"/><path d="M3 20l5-5 3 3 4-5 6 7z" class="fylld"/>',
+    rorelse: true,
+    ladda: () => import('./luckor/12-norrskenet.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
