@@ -106,6 +106,12 @@ const RUM = {
     motiv: '<path d="M17 3l3 3-9 9-3-3z"/><path d="M8 12c-2 0-4 2-4 5 0 1-1 2-2 2 3 1 7 0 8-3z" class="fylld"/>',
     ladda: () => import('./luckor/16-tuschpenseln.js'),
   },
+  17: {
+    namn: 'Klangskålen',
+    farg: '#e8b46a',
+    motiv: '<path d="M4 11h16c0 5-3.5 8-8 8s-8-3-8-8z"/><path d="M9 7c1-1.5 2-1.5 3 0s2 1.5 3 0"/><path d="M7 4c1.5-1.5 3-1.5 5 0s3.5 1.5 5 0"/>',
+    ladda: () => import('./luckor/17-klangskalen.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
