@@ -132,6 +132,13 @@ const RUM = {
     motiv: '<path d="M3 7c3-2 5 2 9 0s6-2 9 0"/><path d="M3 11c3-2 5 2 9 0s6-2 9 0"/><path d="M6 18c1-2 3-2 4 0s3 2 4 0"/>',
     ladda: () => import('./luckor/20-strandkanten.js'),
   },
+  21: {
+    namn: 'Längsta natten',
+    farg: '#b9c4ff',
+    motiv: '<path d="M5 7l5 3 4-4 5 5"/><circle cx="5" cy="7" r="1.3" class="fylld"/><circle cx="10" cy="10" r="1.1" class="fylld"/><circle cx="14" cy="6" r="1.3" class="fylld"/><circle cx="19" cy="11" r="1.1" class="fylld"/><path d="M3 19c4-3 7-3 9-1s6 1 9-2"/>',
+    rorelse: true,
+    ladda: () => import('./luckor/21-langsta-natten.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
