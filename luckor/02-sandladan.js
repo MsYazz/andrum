@@ -278,8 +278,7 @@ export default {
     let rasar = 0;
 
     // Krattan trycker sanden mot en räfflad profil tvärs rörelseriktningen.
-    // Varje pinne äger en egen remsa. En lyft pinne lämnar sin remsa orörd.
-    function kratta(px, py, dx, dy, lyft) {
+    function kratta(px, py, dx, dy) {
       const nx = -dy, ny = dx;
       const R = HALV + 2;
       const x0 = Math.max(0, Math.floor(px - R)), x1 = Math.min(W - 1, Math.ceil(px + R));
@@ -292,8 +291,6 @@ export default {
           const tvars = rx * nx + ry * ny;
           const at = Math.abs(tvars);
           if (at > HALV + 1.5) continue;
-          const pinne = Math.max(-2, Math.min(2, Math.round(tvars / AVST)));
-          if (lyft[pinne + 2]) continue;
           const i = y * W + x;
           if (mask[i]) continue;
           const w = 0.5 * (1 - mjuk(HALV - 1, HALV + 1.5, at)) * (1 - Math.abs(langs) / 1.5);
@@ -403,22 +400,54 @@ export default {
         sx: x, sy: y,                    // startpunkt
         hx: x, hy: y,                    // krattans huvud
         dx: 1, dy: 0, riktad: false,
-        lyft: [false, false, false, false, false],
+        fast: false,
         t,
       };
     }
 
-    // En pinne som träffar en sten lyfts och förblir lyft resten av draget.
+    // Alla pinner sitter på samma tvärslå. Om en pinne tar i en sten fastnar hela
+    // krattan där, och den står still resten av draget.
     function steg(p, x, y) {
+      if (p.fast) return;
       const nx = -p.dy, ny = p.dx;
       for (const s of stenar) {
         if (Math.hypot(x - s.x, y - s.y) > s.rMax + HALV + AVST) continue;
         for (let k = -2; k <= 2; k++) {
-          if (p.lyft[k + 2]) continue;
-          if (stenKant(s, x + nx * k * AVST, y + ny * k * AVST) < AVST * 0.55) p.lyft[k + 2] = true;
+          if (stenKant(s, x + nx * k * AVST, y + ny * k * AVST) < AVST * 0.55) {
+            p.fast = true;
+            tock();
+            return;
+          }
         }
       }
-      kratta(x, y, p.dx, p.dy, p.lyft);
+      kratta(x, y, p.dx, p.dy);
+    }
+
+    // Ett torrt klick när bambukrattan slår i en sten, utan tonhöjd.
+    // En kort brusstöt och ett svagare efterklick när krattan studsar till.
+    const klickBuffer = (() => {
+      const n = Math.floor(ctx.sampleRate * 0.03);
+      const b = ctx.createBuffer(1, n, ctx.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.0025));
+      return b;
+    })();
+    function klick(nar, styrka) {
+      const k = ctx.createBufferSource();
+      k.buffer = klickBuffer;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 2600 + Math.random() * 900;
+      bp.Q.value = 0.9;
+      const g = ctx.createGain();
+      g.gain.value = styrka;
+      k.connect(bp).connect(g).connect(ut);
+      k.start(nar);
+    }
+    function tock() {
+      const t = ctx.currentTime;
+      klick(t, 0.5);
+      klick(t + 0.022 + Math.random() * 0.01, 0.18);
     }
 
     function stampla(p, x, y) {
@@ -462,7 +491,8 @@ export default {
       const m1x = (p.r1x + x) / 2, m1y = (p.r1y + y) / 2;
       kurva(p, p.m0x, p.m0y, p.r1x, p.r1y, m1x, m1y);
       const dt = Math.max(8, t - p.t);
-      fart = Math.max(fart, Math.min(1, (steglangd * CELL) / dt / 1.1));
+      // Skrapljudet hörs bara när krattan faktiskt drar i sanden
+      if (!p.fast) fart = Math.max(fart, Math.min(1, (steglangd * CELL) / dt / 1.1));
       p.m0x = m1x; p.m0y = m1y;
       p.r1x = x; p.r1y = y;
       p.t = t;
