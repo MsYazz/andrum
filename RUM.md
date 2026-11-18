@@ -29,7 +29,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 12 | **Norrskenet** | Slöjor i veck böljar över fjällen. Fingret får dem att bölja och lysa starkare, lutningen får dem att glida | Brusfält i lager, gyro | Klar |
 | 13 | **Luciaskenet** | Ett stearinljus i mörkret. Lågan lutar sig undan för fingret som för ett drag och svajar tillbaka. Stearinet rinner | Låga, fjädrande lutning | Klar |
 | 14 | **Eldflugorna** | Eldflugor samlas långsamt runt fingret och börjar blinka i takt, tills svärmen pulserar tillsammans | Svärm, Kuramoto-synkning | Klar |
-| 15 | **Sidenduken** | Ett tyg vajar i vinden. Hon kan dra i det | Verlet-tyg | |
+| 15 | **Sidenduken** | Skiftande siden i veck som böljar i vinden. Hon kan ta tag och dra i det | Verlet-tyg i 3D | Klar |
 | 16 | **Tuschpenseln** | Penselstreck på rispapper. Bläcket flyter ut i fibrerna | Diffusion i papper | |
 | 17 | **Klangskålen** | För fingret runt kanten och tonen växer | Modalsyntes | |
 | 18 | **Pendelvågen** | Femton pendlar glider in och ur mönster | Pendelfysik | |
