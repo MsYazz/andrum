@@ -146,6 +146,12 @@ const RUM = {
     rorelse: true,
     ladda: () => import('./luckor/22-snoglob.js'),
   },
+  23: {
+    namn: 'Degen',
+    farg: '#f2c56b',
+    motiv: '<path d="M4 15c0-4 3.5-7 8-7s8 3 8 7c0 2-3.5 3.5-8 3.5S4 17 4 15z"/><circle cx="10" cy="13" r="1.3"/><circle cx="14.2" cy="12" r="1.1"/><path d="M3 21h18"/>',
+    ladda: () => import('./luckor/23-degen.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
