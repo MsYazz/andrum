@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0d0b14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Andrum">
+  <link rel="apple-touch-icon" href="ikoner/ikon-180.png">
+  <link rel="icon" href="ikoner/ikon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>Andrum</title>
+</head>
+<body>
+  <main id="kalender">
+    <header>
+      <h1>Andrum</h1>
+      <p class="under">En dörr om dagen, ett rum att vila i</p>
+    </header>
+    <ol id="dorrar"></ol>
+    <p id="forhand" hidden>Förhandsvisning. Från 1 december öppnas en dörr om dagen.</p>
+  </main>
+
+  <div id="scen" hidden>
+    <button id="tillbaka" aria-label="Gå ut ur rummet">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

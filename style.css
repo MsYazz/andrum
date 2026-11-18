@@ -1,0 +1,270 @@
+:root {
+  --natt: #0d0b14;
+  --natt2: #1d1626;
+  --text: #ece3d6;
+  --dov: #8d829f;
+  --karm: rgba(255, 214, 170, 0.16);
+  --tra1: #2a2030;
+  --tra2: #1c1622;
+  --glod: #ffc690;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--natt);
+  color: var(--text);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+body {
+  background: radial-gradient(130% 70% at 50% -5%, #2a1f35 0%, var(--natt) 62%);
+  background-attachment: fixed;
+  min-height: 100svh;
+}
+
+body.i-scen { overflow: hidden; }
+
+/* ---------- Kalendern ---------- */
+
+#kalender {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 44px) 22px calc(env(safe-area-inset-bottom) + 36px);
+  transform-origin: 50% 50%;
+  transition: transform 1.3s cubic-bezier(.55, 0, .3, 1), opacity 1.1s ease;
+}
+
+#kalender.kliver {
+  opacity: 0;
+}
+
+header { text-align: center; margin-bottom: 30px; }
+
+h1 {
+  font-weight: 400;
+  font-size: 2.1rem;
+  letter-spacing: 0.1em;
+  margin: 0;
+  color: #f4e7d5;
+}
+
+.under {
+  margin: 0.45rem 0 0;
+  color: var(--dov);
+  font-style: italic;
+  font-size: 1rem;
+}
+
+#dorrar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px 14px;
+}
+
+.dorr {
+  --rum: #ffc690;
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1.55;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  perspective: 420px;
+}
+
+/* Karmen och rummet bakom dörren */
+.dorr .rum {
+  position: absolute;
+  inset: 0;
+  border-radius: 50% 50% 5px 5px / 32% 32% 5px 5px;
+  background:
+    radial-gradient(90% 70% at 50% 62%, var(--rum) 0%, transparent 70%),
+    #0a0810;
+  box-shadow: inset 0 0 0 1px var(--karm), 0 0 0 3px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+/* Själva dörrbladet, hängt på vänster sida */
+.dorr .blad {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50% 50% 3px 3px / 32% 32% 3px 3px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.12)),
+    linear-gradient(180deg, var(--tra1), var(--tra2));
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 180, 0.07);
+  transform-origin: 0% 50%;
+  transform: rotateY(0deg);
+  transition: transform 1.1s cubic-bezier(.4, 0, .2, 1), filter 1.1s ease;
+  display: grid;
+  place-items: center;
+  backface-visibility: hidden;
+}
+
+/* Två fyllningar i dörren */
+.dorr .blad::before,
+.dorr .blad::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  border: 1px solid rgba(255, 220, 180, 0.06);
+}
+.dorr .blad::before { top: 16%; height: 30%; border-radius: 999px 999px 2px 2px / 60% 60% 2px 2px; }
+.dorr .blad::after { bottom: 10%; height: 30%; border-radius: 2px; }
+
+.dorr .nr {
+  position: relative;
+  z-index: 1;
+  font-size: 1.15rem;
+  color: rgba(236, 227, 214, 0.78);
+  margin-top: 8%;
+}
+
+.dorr .handtag {
+  position: absolute;
+  right: 13%;
+  top: 56%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 210, 160, 0.55);
+}
+
+/* Låst dörr: inget ljus bakom */
+.dorr:disabled { cursor: default; }
+.dorr:disabled .rum { background: #0b0910; }
+.dorr:disabled .nr { color: rgba(236, 227, 214, 0.22); }
+.dorr:disabled .handtag { opacity: 0.3; }
+
+/* Dagens dörr: ljus som andas under dörren */
+.dorr.idag .rum::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -2px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rum);
+  filter: blur(4px);
+  animation: andas 7s ease-in-out infinite;
+}
+
+@keyframes andas {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.85; }
+}
+
+/* Öppnad tidigare: står på glänt */
+.dorr.oppnad .blad { transform: rotateY(-24deg); filter: brightness(0.92); }
+
+/* Öppnas nu */
+.dorr.oppnas .blad { transform: rotateY(-108deg); }
+
+.dorr:not(:disabled):active .blad { filter: brightness(1.15); }
+
+#forhand {
+  margin: 34px 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: rgba(141, 130, 159, 0.75);
+}
+
+/* ---------- Rummet ---------- */
+
+#scen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  touch-action: none;
+  overflow: hidden;
+}
+
+#scen.synlig { opacity: 1; }
+
+#scen .duk {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#tillbaka {
+  position: absolute;
+  z-index: 3;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: 8px;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.3);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.lucka-ui { position: absolute; z-index: 2; }
+
+.ledtext {
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom) + 13vh);
+  text-align: center;
+  font-style: italic;
+  font-size: 1.15rem;
+  letter-spacing: 0.06em;
+  color: rgba(255, 228, 200, 0.55);
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  pointer-events: none;
+}
+.ledtext.syns { opacity: 1; }
+
+.slata {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom) + 14px);
+  padding: 12px 22px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-style: italic;
+  font-size: 0.95rem;
+  color: rgba(60, 45, 30, 0.42);
+  cursor: pointer;
+}
+
+.meddelande {
+  left: 10%;
+  right: 10%;
+  top: 40%;
+  text-align: center;
+  color: var(--dov);
+  font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dorr.idag .rum::after { animation: none; opacity: 0.6; }
+  #kalender { transition: opacity 0.8s ease; }
+}
