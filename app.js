@@ -152,6 +152,12 @@ const RUM = {
     motiv: '<path d="M4 15c0-4 3.5-7 8-7s8 3 8 7c0 2-3.5 3.5-8 3.5S4 17 4 15z"/><circle cx="10" cy="13" r="1.3"/><circle cx="14.2" cy="12" r="1.1"/><path d="M3 21h18"/>',
     ladda: () => import('./luckor/23-degen.js'),
   },
+  24: {
+    namn: 'Grottan',
+    farg: '#ffb36b',
+    motiv: '<path d="M3 21V12a9 9 0 0118 0v9"/><path d="M12 20.5c-2 0-3-1.3-3-2.8 0-1.6 1.5-2.4 2-4.2 1.6 1 4 2.7 4 4.6 0 1.4-1 2.4-3 2.4z" class="fylld"/><circle cx="7" cy="9" r=".8" class="fylld"/><circle cx="16.5" cy="7.5" r=".8" class="fylld"/>',
+    ladda: () => import('./luckor/24-grottan.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
