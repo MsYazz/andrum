@@ -6,10 +6,10 @@
 // en flödeskarta som flyttar ytans mönster med strömmen.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
-import { brusKalla } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { skapaVatska } from '../lib/vatska.js';
-import { mjuk, slump, rumsLjud, slinga, fastaSteg, fingrar, stangning, bubbla } from '../lib/scen.js';
+import { skapaPorl } from '../lib/porl.js';
+import { mjuk, slump, rumsLjud, slinga, fastaSteg, fingrar, stangning } from '../lib/scen.js';
 
 const W = 40, H = 80;      // vätskans rutnät
 const V0 = 14;             // strömmens fart i celler per sekund
@@ -292,17 +292,8 @@ export default {
     // ---------- Ljud ----------
     const l = rumsLjud(1.2, 1.6);
     const { ctx, ut } = l;
-    const flode = brusKalla('rosa');
-    const flodeF = ctx.createBiquadFilter();
-    flodeF.type = 'bandpass'; flodeF.frequency.value = 900; flodeF.Q.value = 0.5;
-    const flodeG = ctx.createGain(); flodeG.gain.value = 0.05;
-    flode.connect(flodeF).connect(flodeG).connect(ut);
-    const mull = brusKalla('rosa');
-    const mullF = ctx.createBiquadFilter();
-    mullF.type = 'lowpass'; mullF.frequency.value = 220;
-    const mullG = ctx.createGain(); mullG.gain.value = 0.035;
-    mull.connect(mullF).connect(mullG).connect(ut);
-    l.kallor.push(flode, mull);
+    const porl = skapaPorl(ctx, ut);
+    l.kallor.push(...porl.kallor);
 
     // ---------- Fingret ----------
     const tillRut = (x, y) => [(x / duk.clientWidth) * W, (y / duk.clientHeight) * H];
@@ -314,7 +305,6 @@ export default {
 
     // ---------- Ritslinga ----------
     const fysik = fastaSteg(1 / 60, 4);
-    let bubbelTid = 0;
     const stoppa = slinga((tid, dt) => {
       fysik(dt, (h) => steg(h, tid));
 
@@ -340,16 +330,8 @@ export default {
       }
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RGBA, gl.FLOAT, texData);
 
-      // Porlet: små bubblor, tätare där vattnet virvlar
-      const t = ctx.currentTime;
-      const takt = 7 + Math.min(1, turbulens) * 35;
-      bubbelTid -= dt;
-      while (bubbelTid <= 0 && tid > 1) {
-        const f = Math.exp(slump(Math.log(380), Math.log(1500)));
-        bubbla(ctx, ut, f, slump(0.008, 0.024) * (0.7 + Math.min(1, turbulens)), t + slump(0, 0.02));
-        bubbelTid += slump(0.3, 1.7) / takt;
-      }
-      flodeG.gain.setTargetAtTime(0.045 + 0.03 * Math.min(1, turbulens), t, 0.3);
+      // Porlet blir livligare där vattnet virvlar, till exempel runt fingret
+      if (tid > 0.8) porl.uppdatera(dt, Math.min(1, 0.15 + turbulens * 0.8));
 
       anpassa(gl, duk, 0.6);
       gl.uniform2f(u.u_res, duk.width, duk.height);
