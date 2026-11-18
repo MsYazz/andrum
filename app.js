@@ -57,6 +57,12 @@ const RUM = {
     motiv: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 12h14M12 3v18"/><path d="M6.5 19.5l3-3M6.5 16.5l1.5-1.5M8.5 19.5l1.5-1.5M17.5 4.5l-3 3M17.5 7.5L16 9M15.5 4.5L14 6"/>',
     ladda: () => import('./luckor/08-isfonstret.js'),
   },
+  9: {
+    namn: 'Tjärnen',
+    farg: '#8fa8d8',
+    motiv: '<path d="M12 3c2.2 3 3.6 5 3.6 6.8a3.6 3.6 0 0 1-7.2 0C8.4 8 9.8 6 12 3z" class="fylld"/><ellipse cx="12" cy="18.5" rx="4" ry="1.2"/><ellipse cx="12" cy="18.5" rx="8" ry="2.6"/>',
+    ladda: () => import('./luckor/09-tjarnen.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
@@ -121,6 +127,7 @@ let vaka = null;
 let oppenDorr = null;
 let upptagen = false;
 let sparadScroll = 0;
+let utBegard = false;
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 const vanta = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -137,6 +144,9 @@ async function kliverIn(dorr) {
   if (RUM[n].rorelse) begarRorelse();
   const laddning = RUM[n].ladda();
   oppenDorr = dorr;
+  // Ett steg i historiken, så att telefonens bakåtknapp eller bakåtsvep leder ut ur rummet
+  history.pushState({ andrum: 'rum', n }, '');
+  utBegard = false;
 
   // 1. Första gången präglas motivet i dörrspegeln. Präglingen sitter sedan kvar.
   if (!dorr.classList.contains('preglad')) {
@@ -177,6 +187,8 @@ async function kliverIn(dorr) {
   sparaOppnad(n);
   try { vaka = await navigator.wakeLock?.request('screen'); } catch {}
   upptagen = false;
+  // Trycktes bakåt medan dörren öppnades går vi ut direkt
+  if (utBegard) kliverUt();
 }
 
 async function kliverUt() {
@@ -213,7 +225,15 @@ lista.addEventListener('click', (e) => {
   if (dorr && !dorr.disabled) kliverIn(dorr);
 });
 
-tillbaka.addEventListener('click', kliverUt);
+// Pilen går bakåt i historiken, precis som telefonens bakåtknapp. Båda landar i popstate.
+tillbaka.addEventListener('click', () => {
+  if (history.state?.andrum === 'rum') history.back();
+  else kliverUt();
+});
+window.addEventListener('popstate', () => {
+  if (upptagen && !stoppa) { utBegard = true; return; }
+  kliverUt();
+});
 
 // iOS pausar ljudet när appen ligger i bakgrunden. Väck det vid nästa beröring.
 document.addEventListener('pointerdown', vaknaLjud, { passive: true });
@@ -223,6 +243,8 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
+// Laddas sidan om inne i ett rum börjar vi i kalendern igen
+if (history.state?.andrum === 'rum') history.replaceState(null, '');
 ritaKalender();
 visaIntro();
 
