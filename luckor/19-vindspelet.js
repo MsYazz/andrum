@@ -1,7 +1,7 @@
 // Lucka 19: Vindspelet
 // Ett vindspel med sex metallrör, en kläpp och ett segel som hänger från en takbjälke
 // mot en skymningshimmel. En svag bris rör det hela tiden lite. Ett svep ger en vindby,
-// och att luta telefonen blåser åt det hållet. När kläppen slår mot ett rör klingar det,
+// och att luta telefonen blåser åt det hållet, även mot eller från en. När kläppen slår mot ett rör klingar det,
 // och ett tryck på ett rör slår an det direkt.
 // Rören och kläppen är pendlar som svänger i två riktningar och stöter mot varandra.
 // Klangen har ett metallrörs egna deltoner och rören är stämda pentatoniskt.
@@ -93,9 +93,11 @@ void main() {
       float kc = cos(u_klapp.z), ks = sin(u_klapp.z);
       vec2 kr = vec2(kd.x * kc + kd.y * ks, -kd.x * ks + kd.y * kc);
       c = mix(c, snore, smoothstep(0.002, 0.0008, kapsel(p, u_skiva, u_segel.xy, 0.0)));
-      if (abs(kr.x) < ${KLAPP_R} && abs(kr.y) < 0.012) {
+      // Närmare blir kläppen lite större och ljusare, längre bort lite mindre och mörkare
+      float kz = 1.0 + 0.22 * u_klapp.w;
+      if (abs(kr.x) < ${KLAPP_R} * kz && abs(kr.y) < 0.012 * kz) {
         vec3 tra = mix(vec3(0.35, 0.2, 0.1), vec3(0.55, 0.34, 0.18), fbm(kr * vec2(30.0, 150.0)));
-        c = tra * (0.75 + 0.3 * smoothstep(-0.012, 0.012, kr.y));
+        c = tra * (0.75 + 0.3 * smoothstep(-0.012, 0.012, kr.y)) * (0.88 + 0.18 * u_klapp.w);
       }
       // Seglet: ett tunt trälöv längst ner
       vec2 sd = p - u_segel.xy;
@@ -134,8 +136,17 @@ export default {
     let byTid = slump(3, 8);
     const segel = { vinkel: 0 };
 
-    let vindX = 0, vindZ = 0, by = 0, lutning = 0;
-    const slutaLuta = lyssnaLutning((beta, gamma) => { lutning = klamp(gamma / 40, -1, 1); });
+    let vindX = 0, vindZ = 0, by = 0, lutning = 0, lutningZ = 0;
+    // Lutning åt sidan blåser i sidled. Lutning mot eller från sig flyttar kläppen mot de
+    // främre eller bortre rören. Utgångsläget är hur hon håller telefonen, och det följer
+    // långsamt med om hon byter ställning.
+    let noll = null;
+    const slutaLuta = lyssnaLutning((beta, gamma) => {
+      lutning = klamp(gamma / 40, -1, 1);
+      if (noll === null) noll = beta;
+      noll += (beta - noll) * 0.002;
+      lutningZ = klamp((beta - noll) / 25, -1, 1);
+    });
 
     // ---------- Ljud ----------
     const l = rumsLjud(1.25, 1.5);
@@ -170,6 +181,8 @@ export default {
         const yta = q === klapp ? 1.8 : 0.5;  // kläppen har seglet och tar mer vind
         q.vx += (-q.w2 * q.px - 0.5 * q.vx + vindX * yta * 0.35) * dt;
         q.vz += (-q.w2 * q.pz - 0.5 * q.vz + vindZ * yta * 0.35) * dt;
+        // Lutningen mot eller från sig drar kläppen dit, ungefär som tyngdkraften gör
+        if (q === klapp) q.vz += lutningZ * 0.9 * dt;
         q.px += q.vx * dt; q.pz += q.vz * dt;
       }
       // Kläppen mot rören, i höjd med kläppen
@@ -245,7 +258,7 @@ export default {
       gl.uniform2f(u.u_res, duk.width, duk.height);
       gl.uniform4fv(u.u_ror, d1);
       gl.uniform4fv(u.u_ror2, d2);
-      gl.uniform4f(u.u_klapp, kx, ky, kv, 0);
+      gl.uniform4f(u.u_klapp, kx, ky, kv, klamp(klapp.pz / RING, -1, 1));
       gl.uniform4f(u.u_segel, sx, syy, kv + segel.vinkel * 0.6, 0);
       gl.uniform2f(u.u_skiva, 0.5, sy);
       gl.uniform1f(u.u_tid, tid);
