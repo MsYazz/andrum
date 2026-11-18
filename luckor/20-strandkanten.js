@@ -268,7 +268,7 @@ export default {
       svG.gain.setTargetAtTime(drar ? 0.02 * vatten : 0.09 * Math.min(1, fart * 6) * vatten, t, 0.15);
       svF.frequency.setTargetAtTime(500 + 900 * Math.min(1, fart * 5), t, 0.2);
       frG.gain.setTargetAtTime(drar ? 0.03 * Math.min(1, fart * 8) * vatten : 0.004, t, 0.2);
-      skrapFart *= Math.exp(-dt * 5);
+      skrapFart = Number.isFinite(skrapFart) ? skrapFart * Math.exp(-dt * 5) : 0;
       skG.gain.setTargetAtTime(0.04 * skrapFart, t, 0.04);
 
       for (let i = 0; i < N; i++) { data[i * 2] = h[i]; data[i * 2 + 1] = vata[i]; }

@@ -15,13 +15,18 @@ python -m http.server 5180
 ## Struktur
 
 - `index.html`, `style.css`, `app.js`: kalendern med dörrarna
-- `lib/gl.js`: WebGL2-hjälpare (en helskärmsshader per rum)
+- `lib/gl.js`: WebGL2-hjälpare (en helskärmsshader per rum, plus egna pass där det behövs)
 - `lib/ljud.js`: ljudmotor, allt ljud skapas i koden
+- `lib/vakt-processor.js`: ljudvakten, som sitter sist i ljudkedjan och stänger ljudet på några millisekunder om något plötsligt blir för starkt eller brusigt
+- `lib/portratt.js`: håller appen i porträttläge även när telefonen vrids
+- `lib/rorelse.js`, `lib/haptik.js`: lutning, skakningar och små haptiska klick
 - `luckor/NN-namn.js`: ett rum per fil, exporterar `start(duk, scen)` som returnerar en stoppfunktion
-- `sw.js`: gör att appen fungerar offline
+- `sw.js`: gör att appen fungerar offline. Den hämtar alltid från nätet först och sparar det den hämtar
 
 ## Nytt rum
 
 1. Skapa `luckor/NN-namn.js` med samma form som de befintliga.
-2. Lägg till rummet i `RUM` i `app.js`.
-3. Lägg till filen i `FILER` i `sw.js` och höj versionen i `CACHE`.
+2. Lägg till rummet i `RUM` i `app.js` (sätt `rorelse: true` om rummet använder lutning eller skakningar).
+3. Uppdatera raden i [RUM.md](RUM.md).
+
+Service workern behöver inte ändras för nya rum, eftersom den sparar filerna när de hämtas första gången.

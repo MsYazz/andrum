@@ -1,6 +1,6 @@
 // Nätet först, så att nya rum dyker upp direkt. Allt som hämtas sparas också,
 // så att rum man redan har besökt fungerar när telefonen är offline.
-const CACHE = 'andrum-v6';
+const CACHE = 'andrum-v7';
 const SKAL = [
   './',
   './index.html',
