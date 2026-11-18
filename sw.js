@@ -1,24 +1,18 @@
-// Nätet först, så att nya rum dyker upp direkt. Cachen används när telefonen är offline.
-const CACHE = 'andrum-v3';
-const FILER = [
+// Nätet först, så att nya rum dyker upp direkt. Allt som hämtas sparas också,
+// så att rum man redan har besökt fungerar när telefonen är offline.
+const CACHE = 'andrum-v4';
+const SKAL = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.webmanifest',
-  './lib/gl.js',
-  './lib/ljud.js',
-  './lib/haptik.js',
-  './lib/rorelse.js',
-  './luckor/01-andetaget.js',
-  './luckor/02-sandladan.js',
-  './luckor/03-lavalampan.js',
   './ikoner/ikon-180.png',
   './ikoner/ikon-512.png',
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILER)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SKAL)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -30,14 +24,16 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
+  if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
     fetch(e.request)
       .then((svar) => {
-        const kopia = svar.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, kopia));
+        if (svar.ok) {
+          const kopia = svar.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, kopia));
+        }
         return svar;
       })
-      .catch(() => caches.match(e.request)),
+      .catch(() => caches.match(e.request, { ignoreSearch: true })),
   );
 });

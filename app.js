@@ -24,6 +24,13 @@ const RUM = {
     rorelse: true,
     ladda: () => import('./luckor/03-lavalampan.js'),
   },
+  4: {
+    namn: 'Timglaset',
+    farg: '#f0d9a8',
+    motiv: '<path d="M6.5 3h11M6.5 21h11"/><path d="M8 3c0 5 7.5 6 7.5 9S8 16 8 21M16 3c0 5-7.5 6-7.5 9s7.5 4 7.5 9"/><path d="M10 20.2l2-2.2 2 2.2z" class="fylld"/>',
+    rorelse: true,
+    ladda: () => import('./luckor/04-timglaset.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
