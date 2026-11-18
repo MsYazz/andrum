@@ -31,6 +31,12 @@ const RUM = {
     rorelse: true,
     ladda: () => import('./luckor/04-timglaset.js'),
   },
+  5: {
+    namn: 'Glöden',
+    farg: '#ff9a4a',
+    motiv: '<path d="M12 3c1.5 3.5 5 5.5 5 9.5a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.6 1.2 2.6 2.2 3C10.7 8.6 11 5.6 12 3z"/><path d="M5 20.5l14-3M5 17.5l14 3"/>',
+    ladda: () => import('./luckor/05-gloden.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';

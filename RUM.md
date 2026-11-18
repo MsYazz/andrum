@@ -19,7 +19,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 2 | **Sandlådan** | Krattar i sand med en stel kratta med fem pinnar. Stenarna slumpas fram varje gång | Höjdfält, rasvinkel, granulärt ljud | Klar |
 | 3 | **Lavalampan** | Klumpar stiger ur pölen, svalnar och sjunker. Fingret värmer vaxet, och lutar hon telefonen stiger vaxet ändå uppåt | Metabollar, termisk tröghet | Klar |
 | 4 | **Timglaset** | Sanden rinner korn för korn. Ett tryck, eller att vända telefonen, vänder glaset | Cellautomat, gyro | Klar |
-| 5 | **Glöden** | Blåser försiktigt i mikrofonen så flammar elden upp och knastrar | Curl noise, mikrofon | |
+| 5 | **Glöden** | Fläktar med fingret så tar lågorna fart. Svep uppåt blåser upp gnistor, ett tryck rör om i glöden | Brusfält, cellmönster, gnistor | Klar |
 | 6 | **Fjällbäcken** | Lägger fingret som en sten och vattnet porlar runt den | Stable Fluids | |
 | 7 | **Frostängen** | Går med två fingertoppar över en frostig äng. Varje steg knastrar och lämnar ett grönt spår som långsamt frostar igen. Första konfettin | Höjd- och frostfält, stegrytm | |
 | 8 | **Isfönstret** | Frost växer på glaset. Hon andas på det och smälter ett titthål | DLA-tillväxt | |
