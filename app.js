@@ -118,6 +118,13 @@ const RUM = {
     motiv: '<path d="M3 4h18"/><path d="M6 4l-1 11M10 4l0 13M14 4l1 11M18 4l2 8"/><circle cx="5" cy="16" r="1.4" class="fylld"/><circle cx="10" cy="18" r="1.4" class="fylld"/><circle cx="15" cy="16" r="1.4" class="fylld"/><circle cx="20" cy="13" r="1.4" class="fylld"/>',
     ladda: () => import('./luckor/18-pendelvagen.js'),
   },
+  19: {
+    namn: 'Vindspelet',
+    farg: '#f0b48c',
+    motiv: '<path d="M12 2v3"/><ellipse cx="12" cy="6" rx="6" ry="1.2"/><path d="M7 7v8M10 7v11M14 7v10M17 7v7M12 7v9"/><path d="M12 16v3"/><path d="M12 19c-1 1-1 3 0 3s1-2 0-3z" class="fylld"/>',
+    rorelse: true,
+    ladda: () => import('./luckor/19-vindspelet.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
