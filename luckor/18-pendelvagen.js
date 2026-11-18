@@ -2,7 +2,8 @@
 // Femton pendlar sedda rakt uppifrån, med blanka mässingskulor över ett mörkt bord.
 // Längderna är valda så att pendel nummer i svänger 30 + i gånger på 90 sekunder, så
 // alla är i takt igen efter en och en halv minut. Däremellan glider kulorna ut i ormar,
-// vågor och spiraler. Varje pendel spelar en mjuk ton när den vänder i ytterläget.
+// vågor och spiraler. Varje kula spelar en mjuk ton och lyser till när den passerar
+// mittlinjen på väg uppåt, så att melodin följer mönstret man ser.
 // Ett tryck samlar pendlarna och släpper dem i takt igen. Ett svep knuffar till dem.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
@@ -22,7 +23,7 @@ const FS = `#version 300 es
 precision highp float;
 out vec4 frag;
 uniform vec2 u_res;
-uniform vec4 u_kula[${N}];   // x, y (skärmbredder, y uppåt), radie, -
+uniform vec4 u_kula[${N}];   // x, y (skärmbredder, y uppåt), radie, glöd när den spelar
 uniform float u_mitt;        // upphängningens linje
 uniform float u_tid;
 uniform float u_synlig;
@@ -57,8 +58,15 @@ void main() {
     float d = segment(p, k.xy, vec2(k.x, u_mitt));
     c = mix(c, vec3(0.75, 0.7, 0.6), smoothstep(0.0022, 0.0008, d) * 0.5);
   }
-  // Upphängningens stång, som en svag skugga tvärs över
+  // Upphängningens stång, som en svag skugga tvärs över. Det är här tonerna spelas.
   c *= 1.0 - 0.25 * smoothstep(0.012, 0.0, abs(p.y - u_mitt));
+  c += vec3(0.6, 0.45, 0.25) * smoothstep(0.003, 0.0, abs(p.y - u_mitt)) * 0.12;
+  // Ett varmt sken runt kulor som just spelat
+  for (int i = 0; i < ${N}; i++) {
+    vec4 k = u_kula[i];
+    float d = length(p - k.xy);
+    c += vec3(1.0, 0.75, 0.4) * exp(-d * d / (k.z * k.z * 6.0)) * k.w * 0.35;
+  }
 
   // Kulorna: blank mässing med en ljuspunkt och reflex från bordet
   for (int i = 0; i < ${N}; i++) {
@@ -73,6 +81,7 @@ void main() {
       vec3 massing = mix(vec3(0.35, 0.22, 0.08), vec3(0.85, 0.64, 0.32), lj);
       massing += vec3(1.0, 0.95, 0.85) * glans * 0.9;
       massing += vec3(0.3, 0.18, 0.08) * pow(1.0 - n.z, 3.0) * 0.5;
+      massing += vec3(1.0, 0.8, 0.5) * k.w * 0.35;
       c = mix(c, massing * (0.6 + 0.5 * lampa), smoothstep(1.0, 0.92, r2));
     }
   }
@@ -172,12 +181,16 @@ export default {
         q.amp *= Math.exp(-dt * 0.003);
         const vinkel = q.w * (tid - start) + q.fas;
         const y = Math.sin(vinkel);
-        // En ton varje gång pendeln vänder längst ut på ena sidan. Räknas i hela varv,
-        // så att ingen vändning missas även om den hamnar mellan två bildrutor.
-        const varv = Math.floor((vinkel - Math.PI / 2) / (Math.PI * 2));
-        if (varv > q.senast && tid > 1 && samlar <= 0) ton(N - 1 - i, mjuk(0.05, AMP, q.amp));
+        // En ton varje gång kulan passerar mittlinjen på väg uppåt, och då lyser den till.
+        // Räknas i hela varv, så att ingen passage missas mellan två bildrutor.
+        const varv = Math.floor(vinkel / (Math.PI * 2));
+        if (varv > q.senast && tid > 1 && samlar <= 0) {
+          ton(N - 1 - i, mjuk(0.05, AMP, q.amp));
+          q.glod = 1;
+        }
         q.senast = varv;
-        data.set([0.12 + (i / (N - 1)) * 0.76, mitt + y * q.amp, 0.024, 0], i * 4);
+        q.glod = (q.glod || 0) * Math.exp(-dt * 3);
+        data.set([0.12 + (i / (N - 1)) * 0.76, mitt + y * q.amp, 0.024, q.glod], i * 4);
       });
 
       anpassa(gl, duk, 0.75);
