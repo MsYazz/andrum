@@ -5,11 +5,12 @@
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, slappGL, utanGL } from '../lib/gl.js';
 import { ljud, brusKalla, rum, klocka, sov } from '../lib/ljud.js';
 
-const IN = 4.5;      // sekunder in
-const UPPE = 0.7;    // vila högst upp
-const UT = 6.5;      // sekunder ut, längre än in för att lugna
-const NERE = 1.3;    // vila längst ner
-const CYKEL = IN + UPPE + UT + NERE;
+// Resonansandning: 6 andetag per minut, 4 sekunder in och 6 sekunder ut.
+// Den längre utandningen lugnar nervsystemet. Inga pauser där andan hålls,
+// eftersom det kan kännas pressande för den som redan är utmattad.
+const IN = 4;
+const UT = 6;
+const CYKEL = IN + UT;
 const ANTAL = 10;
 const INTRO = 5;
 
@@ -97,11 +98,10 @@ void main() {
   frag = vec4(c, 1.0);
 }`;
 
+// Mjuk kurva som vänder utan ryck i båda ändarna.
 function andning(c) {
   if (c < IN) return 0.5 - 0.5 * Math.cos((Math.PI * c) / IN);
-  if (c < IN + UPPE) return 1;
-  if (c < IN + UPPE + UT) return 0.5 + 0.5 * Math.cos((Math.PI * (c - IN - UPPE)) / UT);
-  return 0;
+  return 0.5 + 0.5 * Math.cos((Math.PI * (c - IN)) / UT);
 }
 
 const mjuk = (a, b, x) => {
@@ -174,10 +174,11 @@ export default {
     scen.append(led);
     let ledfas = '';
     function ledtext(nr, c) {
+      // Texten tonar ut strax innan andningen vänder, så att den aldrig byts medan den syns.
       let fas = '';
       if (nr < 2) {
-        if (c < IN) fas = 'andas in';
-        else if (c >= IN + UPPE && c < IN + UPPE + UT) fas = 'andas ut';
+        if (c < IN - 0.8) fas = 'andas in';
+        else if (c >= IN && c < IN + UT - 1) fas = 'andas ut';
       }
       if (fas === ledfas) return;
       ledfas = fas;
@@ -228,14 +229,16 @@ export default {
 
       if (bt >= 0) {
         const nr = Math.floor(bt / CYKEL);
+        // En ton för varje fullbordat andetag
+        const klara = Math.min(ANTAL, nr);
+        while (senastKlang < klara - 1) {
+          senastKlang++;
+          klocka(TONER[senastKlang], { till: ut, eko, styrka: 0.04 });
+        }
         if (nr < ANTAL) {
           const c = bt - nr * CYKEL;
           and = andning(c);
-          antal = nr + Math.min(1, c / (IN + UPPE + UT));
-          if (c >= IN + UPPE + UT && senastKlang < nr) {
-            senastKlang = nr;
-            klocka(TONER[nr], { till: ut, eko, styrka: 0.04 });
-          }
+          antal = nr + c / CYKEL;
           ledtext(nr, c);
         } else {
           antal = ANTAL;

@@ -1,5 +1,5 @@
 // Nätet först, så att nya rum dyker upp direkt. Cachen används när telefonen är offline.
-const CACHE = 'andrum-v1';
+const CACHE = 'andrum-v2';
 const FILER = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const FILER = [
   './manifest.webmanifest',
   './lib/gl.js',
   './lib/ljud.js',
+  './lib/haptik.js',
   './luckor/01-andetaget.js',
   './luckor/02-sandladan.js',
   './ikoner/ikon-180.png',

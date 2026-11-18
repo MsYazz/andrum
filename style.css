@@ -30,6 +30,7 @@ body {
 }
 
 body.i-scen { overflow: hidden; }
+html:has(body.i-scen) { overflow: hidden; }
 
 /* ---------- Kalendern ---------- */
 
@@ -126,6 +127,35 @@ h1 {
 }
 .dorr .blad::before { top: 16%; height: 30%; border-radius: 999px 999px 2px 2px / 60% 60% 2px 2px; }
 .dorr .blad::after { bottom: 10%; height: 30%; border-radius: 2px; }
+
+/* Relieftrycket i den övre dörrspegeln: upphöjt, ljus uppifrån vänster */
+.dorr .relief {
+  position: absolute;
+  left: 27%;
+  top: 18.5%;
+  width: 46%;
+  height: 25%;
+  fill: none;
+  stroke: rgba(255, 226, 192, 0.34);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  filter:
+    drop-shadow(-0.6px -0.6px 0 rgba(255, 238, 215, 0.38))
+    drop-shadow(0.8px 1px 0.3px rgba(0, 0, 0, 0.85));
+  transform-origin: 50% 50%;
+}
+.dorr .relief .fylld { fill: rgba(255, 226, 192, 0.3); }
+.dorr.preglad .relief { opacity: 1; }
+.dorr.praglas .relief { animation: pragla 0.9s cubic-bezier(.2, .7, .2, 1) both; }
+
+@keyframes pragla {
+  0% { opacity: 0; transform: scale(1.35); }
+  35% { opacity: 1; transform: scale(0.94); }
+  65% { transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
 
 .dorr .nr {
   position: relative;
