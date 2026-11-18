@@ -30,6 +30,25 @@ body {
 }
 
 body.i-scen { overflow: hidden; }
+
+/* Telefonen vriden till liggande: innehållet vrids tillbaka och står kvar i porträtt
+   (lib/portratt.js). Body blir då den som rullar, och fasta lager hålls inom den. */
+html[data-vriden] { overflow: hidden; height: 100%; }
+html[data-vriden] body {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--vb);
+  height: var(--vh);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transform-origin: 0 0;
+  background-attachment: scroll;
+}
+html[data-vriden="90"] body { transform: rotate(-90deg) translateX(-100%); }
+html[data-vriden="270"] body { transform: rotate(90deg) translateY(-100%); }
+html[data-vriden] body.i-scen { overflow: hidden; }
 html:has(body.i-scen) { overflow: hidden; }
 
 /* ---------- Kalendern ---------- */

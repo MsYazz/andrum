@@ -1,3 +1,4 @@
+import { rektangel, rullat, rullaTill, tillInnehall } from './lib/portratt.js';
 import { ljud, vaknaLjud, duns } from './lib/ljud.js';
 import { knack } from './lib/haptik.js';
 import { begarRorelse } from './lib/rorelse.js';
@@ -225,9 +226,9 @@ async function kliverIn(dorr) {
   await vanta(650);
 
   // 3. Vi glider in genom öppningen. Förstoringen får inte rubba var man står i kalendern.
-  sparadScroll = window.scrollY;
-  const k = kalender.getBoundingClientRect();
-  const d = dorr.getBoundingClientRect();
+  sparadScroll = rullat();
+  const k = rektangel(kalender);
+  const d = rektangel(dorr);
   kalender.style.transformOrigin = `${d.left - k.left + d.width / 2}px ${d.top - k.top + d.height * 0.55}px`;
   if (!lugn) kalender.style.transform = 'scale(7)';
   kalender.classList.add('kliver');
@@ -270,7 +271,7 @@ async function kliverUt() {
   // Tillbaka ut genom dörren, som sedan glider igen till glänt.
   kalender.style.transform = '';
   kalender.classList.remove('kliver');
-  window.scrollTo(0, sparadScroll);
+  rullaTill(sparadScroll);
   await vanta(900);
   if (oppenDorr) {
     oppenDorr.classList.remove('oppnas');
@@ -324,14 +325,16 @@ function visaDrag() {
   kalender.style.transform = dragAvst ? `translateY(${Math.min(dragAvst, 150) * 0.35}px)` : '';
 }
 window.addEventListener('touchstart', (e) => {
-  const blockerad = stoppa || upptagen || document.querySelector('.intro') || window.scrollY > 2;
-  dragStart = blockerad ? null : e.touches[0].clientY;
+  const blockerad = stoppa || upptagen || document.querySelector('.intro') || rullat() > 2;
+  const t = e.touches[0];
+  dragStart = blockerad ? null : tillInnehall(t.clientX, t.clientY)[1];
   dragAvst = 0;
   if (dragStart !== null) kalender.style.transition = 'none';
 }, { passive: true });
 window.addEventListener('touchmove', (e) => {
   if (dragStart === null) return;
-  dragAvst = window.scrollY > 2 ? 0 : Math.max(0, e.touches[0].clientY - dragStart);
+  const t = e.touches[0];
+  dragAvst = rullat() > 2 ? 0 : Math.max(0, tillInnehall(t.clientX, t.clientY)[1] - dragStart);
   visaDrag();
 }, { passive: true });
 const slutaDra = () => {

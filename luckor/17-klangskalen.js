@@ -108,7 +108,7 @@ export default {
     const u = platser(gl, prog, ['u_res', 'u_tid', 'u_sang', 'u_slag', 'u_vinkel', 'u_synlig']);
 
     // ---------- Klangen ----------
-    const l = rumsLjud(1.3, 0.6);
+    const l = rumsLjud(0.95, 0.6);
     const { ctx, ut } = l;
     const eko = rum(4);
     const ekoUt = ctx.createGain(); ekoUt.gain.value = 0.35;
@@ -131,7 +131,7 @@ export default {
     const NIVA = 0.07;
 
     function sla(styrka) {
-      DELAR.forEach(([, a], i) => { slagNiva[i] = Math.min(1.2, slagNiva[i] + a * styrka); });
+      DELAR.forEach(([, a], i) => { slagNiva[i] = Math.min(1, slagNiva[i] + a * styrka); });
     }
 
     // ---------- Fingret ----------
