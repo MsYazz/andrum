@@ -1,6 +1,6 @@
 // Lucka 20: Strandkanten
 // En sandstrand sedd uppifrån, med havet högst upp. Hon skriver eller ritar i den våta
-// sanden med fingret. Med ojämna mellanrum sköljer en våg upp, olika långt varje gång,
+// sanden med fingret, som med en pinne. Med ojämna mellanrum sköljer en våg upp, olika långt varje gång,
 // och där vattnet når slätas fårorna sakta ut. Det är meningen att det ska försvinna.
 // Sanden är ett höjdfält. Vågens framkant följer samma formel i JavaScript och shadern.
 
@@ -9,7 +9,7 @@ import { brusKalla } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, rumsLjud, slinga, fingrar, stangning } from '../lib/scen.js';
 
-const SW = 128, SH = 280;
+const SW = 192, SH = 420;
 const BAS = 0.5;
 
 const FS = `#version 300 es
@@ -37,9 +37,12 @@ void main() {
   vec2 e = 1.0 / u_rut;
   float hx = texture(u_sand, tc + vec2(e.x, 0.0)).r - texture(u_sand, tc - vec2(e.x, 0.0)).r;
   float hy = texture(u_sand, tc + vec2(0.0, e.y)).r - texture(u_sand, tc - vec2(0.0, e.y)).r;
-  vec3 n = normalize(vec3(-hx * 4.0, hy * 4.0, 1.0));
-  vec3 L = normalize(vec3(-0.4, 0.5, 0.75));
+  vec3 n = normalize(vec3(-hx * 7.0, hy * 7.0, 1.0));
+  vec3 L = normalize(vec3(-0.5, 0.55, 0.65));
   float lj = max(dot(n, L), 0.0);
+  // Botten av en fåra ligger i skugga, toppen av vallarna fångar ljuset
+  float grop = clamp((${BAS.toFixed(2)} - t.r) * 9.0, 0.0, 0.5);
+  float topp = clamp((t.r - ${BAS.toFixed(2)}) * 10.0, 0.0, 0.3);
 
   // Sanden: ljus och torr längst ner, mörk och blank där den är våt
   float korn = hash(floor(gl_FragCoord.xy));
@@ -53,7 +56,7 @@ void main() {
     vata += texture(u_sand, tc + skaka + o).g * 0.25;
   }
   vata = smoothstep(0.05, 0.95, vata);
-  vec3 sand = mix(torr, vat, vata) * (0.55 + 0.6 * lj);
+  vec3 sand = mix(torr, vat, vata) * (0.55 + 0.6 * lj) * (1.0 - grop) * (1.0 + topp * 0.4);
   // Våt sand speglar himlen
   float glans = pow(max(dot(reflect(-L, n), vec3(0.0, 0.0, 1.0)), 0.0), 30.0);
   sand += vec3(0.75, 0.8, 0.85) * glans * vata * 0.25;
@@ -123,24 +126,39 @@ export default {
     const h = new Float32Array(N).fill(BAS), vata = new Float32Array(N);
     for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
       // Lite mjuka vågmönster i sanden efter tidigare vågor
-      h[y * SW + x] = BAS + 0.01 * Math.sin(x * 0.3 + Math.sin(y * 0.05) * 3) * Math.sin(y * 0.4);
+      h[y * SW + x] = BAS + 0.005 * Math.sin(y * 0.21 + 2 * Math.sin(x * 0.031) + 0.7 * Math.sin(x * 0.09 + y * 0.02));
       vata[y * SW + x] = y < SH * 0.55 ? 1 - y / (SH * 0.55) * 0.4 : Math.max(0, 0.6 - (y - SH * 0.55) / (SH * 0.2));
     }
 
-    // Fingret gräver en fåra med små vallar på sidorna. Vi minns hur långt ner hon har
-    // skrivit, så att en våg förr eller senare når ända dit.
-    let lagst = 0;
+    // Vi minns hur långt ner hon har skrivit, så att en våg förr eller senare når ända dit.
+    let lagst = 0, skrevs = 0, klocka = 0;
+    // Pinnen ritar en smal, skarp fåra med V-form. Sanden den tränger undan läggs som
+    // små vallar längs kanterna, och djupet skiftar lite som när en kvist darrar i handen.
+    let pinnTid = 0;
     function grav(cx, cy) {
-      lagst = Math.max(lagst, cy / SH);
-      const R = 3.2;
-      for (let y = Math.max(1, Math.floor(cy - R - 2)); y <= Math.min(SH - 2, Math.ceil(cy + R + 2)); y++) {
-        for (let x = Math.max(1, Math.floor(cx - R - 2)); x <= Math.min(SW - 2, Math.ceil(cx + R + 2)); x++) {
+      if (cy / SH > lagst) { lagst = cy / SH; skrevs = klocka; }
+      pinnTid += 0.13;
+      const R = 1.5;
+      const djup = 0.075 * (0.85 + 0.15 * Math.sin(pinnTid * 1.7) * Math.sin(pinnTid * 0.6 + 1));
+      const VALL = 1.8;
+      for (let y = Math.max(1, Math.floor(cy - R - VALL)); y <= Math.min(SH - 2, Math.ceil(cy + R + VALL)); y++) {
+        for (let x = Math.max(1, Math.floor(cx - R - VALL)); x <= Math.min(SW - 2, Math.ceil(cx + R + VALL)); x++) {
           const d = Math.hypot(x - cx, y - cy);
           const i = y * SW + x;
-          if (d < R) h[i] += (BAS - 0.09 * (1 - (d / R) ** 2) - h[i]) * 0.35;
-          else if (d < R + 2) h[i] += (BAS + 0.025 - h[i]) * 0.12;
-          vata[i] = Math.min(1, vata[i] + 0.05);
+          if (d < R) {
+            const mal = BAS - djup * (1 - d / R);
+            if (h[i] > mal) h[i] += (mal - h[i]) * 0.6;
+          } else if (d < R + VALL) {
+            const mal = BAS + 0.03 * (1 - (d - R) / VALL);
+            if (h[i] < mal) h[i] += (mal - h[i]) * 0.25;
+          }
         }
+      }
+      // Ibland lossnar ett litet sandkorn och hamnar bredvid fåran
+      if (Math.random() < 0.12) {
+        const a = Math.random() * Math.PI * 2, r = R + VALL + Math.random() * 1.5;
+        const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
+        if (x > 0 && x < SW - 1 && y > 0 && y < SH - 1) h[y * SW + x] += 0.035;
       }
     }
 
@@ -177,7 +195,7 @@ export default {
     const frG = ctx.createGain(); frG.gain.value = 0;
     fras.connect(frF).connect(frG).connect(ut);
     const skrap = brusKalla('korn');
-    const skF = ctx.createBiquadFilter(); skF.type = 'bandpass'; skF.frequency.value = 1500; skF.Q.value = 0.8;
+    const skF = ctx.createBiquadFilter(); skF.type = 'bandpass'; skF.frequency.value = 2300; skF.Q.value = 1.1;
     const skG = ctx.createGain(); skG.gain.value = 0;
     skrap.connect(skF).connect(skG).connect(ut);
     l.kallor.push(branning, brLfo, svall, fras, skrap);
@@ -192,9 +210,9 @@ export default {
         const [gx, gy] = tillRut(x, y);
         if (forra) {
           const d = Math.hypot(gx - forra[0], gy - forra[1]);
-          const n = Math.ceil(d / 0.8);
+          const n = Math.ceil(d / 0.6);
           for (let s = 1; s <= n; s++) grav(forra[0] + (gx - forra[0]) * s / n, forra[1] + (gy - forra[1]) * s / n);
-          skrapFart = Math.min(1, skrapFart + d * 0.06);
+          skrapFart = Math.min(1, skrapFart + d * 0.04);
         }
         forra = [gx, gy];
       },
@@ -214,10 +232,12 @@ export default {
 
     // ---------- Ritslinga ----------
     const stoppa = slinga((tid, dt) => {
+      klocka += dt;
       nastaVag -= dt;
       if (nastaVag <= 0) {
         let nar = slump(0.3, 0.72);
-        if (lagst > nar && Math.random() < 0.6) nar = Math.min(0.9, lagst + 0.05);
+        // Det hon skrivit får ligga kvar en stund innan en våg söker sig ända dit
+        if (lagst > nar && klocka - skrevs > 25 && Math.random() < 0.6) nar = Math.min(0.9, lagst + 0.05);
         if (nar >= lagst) lagst = 0;
         vag = { start: tid, nar, langd: slump(6, 9) * (0.8 + nar * 0.4), fro: slump(0, 50) };
         nastaVag = vag.langd + slump(2, 8);
