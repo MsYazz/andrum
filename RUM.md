@@ -18,7 +18,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 1 | **Andetaget** | En glödande dimma vidgas och drar ihop sig i tio andetag (resonansandning, 4 s in och 6 s ut) | Brusfält, mjuk puls, pentatoniska toner | Klar |
 | 2 | **Sandlådan** | Krattar i sand med en stel kratta med fem pinnar. Stenarna slumpas fram varje gång | Höjdfält, rasvinkel, granulärt ljud | Klar |
 | 3 | **Lavalampan** | Klumpar stiger ur pölen, svalnar och sjunker. Fingret värmer vaxet, och lutar hon telefonen stiger vaxet ändå uppåt | Metabollar, termisk tröghet | Klar |
-| 4 | **Timglaset** | Sanden rinner korn för korn. Ett tryck, eller att vända telefonen, vänder glaset | Cellautomat, gyro | Klar |
+| 4 | **Timglaset** | Fin sand rinner genom halsen och följer telefonens lutning. Ett tryck vänder glaset, och sanden rasar under vändningen | Cellautomat med valfri tyngdkraft, gyro | Klar |
 | 5 | **Glöden** | Fläktar med fingret så tar lågorna fart. Svep uppåt blåser upp gnistor, ett tryck rör om i glöden | Brusfält, cellmönster, gnistor | Klar |
 | 6 | **Fjällbäcken** | Lägger fingret som en sten och vattnet porlar och skummar runt den. Björklöv flyter med | Stable Fluids, flödeskarta | Klar |
 | 7 | **Frostängen** | Går med två fingertoppar över en frostig äng. Varje steg knastrar och lämnar ett grönt spår som långsamt frostar igen. Första konfettin | Höjd- och frostfält, stegrytm | |
