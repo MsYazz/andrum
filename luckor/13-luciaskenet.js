@@ -1,7 +1,8 @@
 // Lucka 13: Luciaskenet
 // Ett vitt stearinljus i en mässingsstake på ett träbord, i ett mörkt rum. Lågan
 // fladdrar och lyser upp väggen och bordet. För hon fingret nära lågan lutar den sig
-// undan som för ett drag och svajar tillbaka. Stearinet rinner långsamt i droppar.
+// undan som för ett drag och svajar tillbaka. Håller hon fingret länge mitt på lågan
+// kvävs den nästan helt, och växer sakta upp igen när hon släpper. Stearinet rinner långsamt i droppar.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
 import { brusKalla } from '../lib/ljud.js';
@@ -18,6 +19,7 @@ uniform float u_tid;
 uniform float u_luta;       // lågans lutning
 uniform float u_flamma;     // fladder, 0..1
 uniform float u_ljus;       // hur starkt ljuset är just nu
+uniform float u_kvav;       // 0 brinner fritt, 1 nästan slocknad
 uniform vec4 u_dropp[${DROPPAR}];  // x på ljuset (-1..1), längd, bredd, -
 uniform float u_synlig;
 ${BRUS}
@@ -28,15 +30,16 @@ const float TOPP = 0.42;     // ljusets topp
 
 float laga(vec2 p, out float karna, out float bas) {
   // p relativt veken, y uppåt
-  float H = 0.13 * (0.9 + 0.1 * sin(u_tid * 9.0) * u_flamma) * (1.0 - 0.15 * abs(u_luta));
+  float H = 0.13 * (0.9 + 0.1 * sin(u_tid * 9.0) * u_flamma) * (1.0 - 0.15 * abs(u_luta)) * (1.0 - 0.82 * u_kvav);
   float yn = p.y / H;
   // Lutning och ett svagt svaj, mer högt upp
   float x = p.x - u_luta * 0.06 * pow(max(yn, 0.0), 1.4);
   x -= sin(u_tid * 6.0 + yn * 4.0) * 0.006 * u_flamma * max(yn, 0.0);
-  float w = 0.024 * pow(clamp(1.0 - yn, 0.0, 1.0), 0.65) * smoothstep(-0.3, 0.12, yn);
+  float w = 0.024 * (1.0 - 0.45 * u_kvav) * pow(clamp(1.0 - yn, 0.0, 1.0), 0.65) * smoothstep(-0.3, 0.12, yn);
   float f = smoothstep(w, w * 0.25, abs(x)) * step(-0.3, yn) * step(yn, 1.0);
-  karna = smoothstep(w * 0.55, 0.0, abs(x)) * smoothstep(0.75, 0.15, yn) * smoothstep(-0.05, 0.12, yn);
-  bas = smoothstep(0.18, -0.05, yn) * f;
+  karna = smoothstep(w * 0.55, 0.0, abs(x)) * smoothstep(0.75, 0.15, yn) * smoothstep(-0.05, 0.12, yn) * (1.0 - u_kvav);
+  // En kvävd låga blir liten och mest blå
+  bas = smoothstep(0.18 + 0.6 * u_kvav, -0.05, yn) * f;
   return f;
 }
 
@@ -108,6 +111,16 @@ void main() {
   c += vec3(1.0, 0.95, 0.85) * karna * 0.6;
   vec2 hd = (p - veke - vec2(-u_luta * 0.02, 0.05)) * vec2(1.0, 0.7);
   c += vec3(1.0, 0.6, 0.25) * exp(-dot(hd, hd) * 60.0) * 0.18 * L;
+  // Veken glöder rött när lågan nästan slocknat
+  vec2 vk = (p - veke + vec2(0.0, 0.006)) / vec2(0.004, 0.006);
+  c += vec3(1.0, 0.3, 0.08) * exp(-dot(vk, vk)) * 0.6 * smoothstep(0.4, 0.9, u_kvav);
+  // En tunn rökslinga stiger när den kvävs
+  if (u_kvav > 0.05) {
+    float hojd = p.y - veke.y - 0.01;
+    float slinga = sin(hojd * 28.0 - t * 1.6) * 0.012 * hojd * 4.0 + (fbm(vec2(hojd * 6.0, t * 0.2)) - 0.5) * 0.03 * hojd * 3.0;
+    float rok = exp(-pow((p.x - slinga) / (0.003 + hojd * 0.025), 2.0)) * smoothstep(0.0, 0.03, hojd) * exp(-hojd * 5.0);
+    c += vec3(0.32, 0.3, 0.3) * rok * smoothstep(0.2, 0.8, u_kvav) * 0.5;
+  }
 
   c *= u_synlig;
   frag = vec4(dither(c, gl_FragCoord.xy, t), 1.0);
@@ -118,7 +131,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_luta', 'u_flamma', 'u_ljus', 'u_dropp', 'u_synlig']);
+    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_luta', 'u_flamma', 'u_ljus', 'u_kvav', 'u_dropp', 'u_synlig']);
 
     // Världen: x i bredder från mitten, y uppåt från bordet
     const varld = (cx, cy) => [(cx - duk.clientWidth / 2) / duk.clientWidth, (duk.clientHeight * 0.7 - cy) / duk.clientWidth];
@@ -126,6 +139,9 @@ export default {
 
     // ---------- Lågan ----------
     let luta = 0, lutaFart = 0, flamma = 0.2, malLuta = 0;
+    // Håller hon fingret länge mitt på lågan kvävs den sakta, nästan helt. Släpper hon
+    // växer den långsamt upp igen. Den slocknar aldrig helt.
+    let kvav = 0;
     const finger = { x: 0, y: 0, nere: false, fart: 0, forra: null };
     fingrar(duk, {
       ner: (x, y) => { finger.nere = true; [finger.x, finger.y] = varld(x, y); finger.forra = { x, y, t: performance.now() }; },
@@ -184,6 +200,11 @@ export default {
         flamma = Math.min(1, flamma + nara * dt * 1.5);
       }
       flamma = Math.min(1, flamma + finger.fart * dt * 2);
+      const paLagan = finger.nere && Math.hypot(finger.x - VEKE[0], (finger.y - VEKE[1] - 0.05) * 0.8) < 0.07;
+      if (paLagan) kvav += (0.94 - kvav) * dt * 0.35 * (0.4 + kvav);
+      else kvav += (0 - kvav) * dt * 0.25;
+      // Mitt på lågan lutar den inte undan, den krymper
+      if (paLagan) malLuta *= 1 - kvav;
       finger.fart *= Math.exp(-dt * 3);
       // Lutningen svajar som en fjäder mot sitt mål
       lutaFart += ((malLuta - luta) * 18 - lutaFart * 4.5) * dt;
@@ -207,9 +228,10 @@ export default {
 
       // Ljud: fladder i draget, och ett litet knäpp från veken ibland
       const t = ctx.currentTime;
-      fG.gain.setTargetAtTime(0.06 * Math.max(0, flamma - 0.2) + 0.02 * Math.abs(lutaFart) * 0.1, t, 0.06);
+      fG.gain.setTargetAtTime((0.06 * Math.max(0, flamma - 0.2) + 0.02 * Math.abs(lutaFart) * 0.1) * (1 - kvav), t, 0.06);
+      ton.gain.setTargetAtTime(0.018 * (1 - 0.6 * kvav), t, 0.5);
       knappTid -= dt;
-      if (knappTid <= 0) {
+      if (knappTid <= 0 && kvav < 0.3) {
         brusstot(ctx, ut, { frekvens: slump(2500, 6000), q: 1.5, styrka: slump(0.03, 0.08), langd: 0.0007, nar: t });
         knappTid = slump(4, 14);
       }
@@ -219,7 +241,8 @@ export default {
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_luta, luta);
       gl.uniform1f(u.u_flamma, flamma);
-      gl.uniform1f(u.u_ljus, flimmer * (1 - 0.15 * Math.abs(luta)));
+      gl.uniform1f(u.u_ljus, flimmer * (1 - 0.15 * Math.abs(luta)) * (1 - 0.9 * kvav));
+      gl.uniform1f(u.u_kvav, kvav);
       gl.uniform4fv(u.u_dropp, droppData);
       gl.uniform1f(u.u_synlig, mjuk(0, 3, tid));
       ritaHelskarm(gl);
