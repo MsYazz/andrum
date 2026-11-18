@@ -2,6 +2,7 @@ import { ljud, vaknaLjud, duns } from './lib/ljud.js';
 import { knack } from './lib/haptik.js';
 import { begarRorelse } from './lib/rorelse.js';
 import { visaIntro } from './lib/intro.js';
+import { nyMilstolpe, visaKonfetti } from './lib/konfetti.js';
 
 // Rummen som finns. Färgen är ljuset som strömmar ut genom dörren.
 // Motivet präglas i den övre dörrspegeln första gången dörren öppnas (SVG, 24x24).
@@ -43,6 +44,12 @@ const RUM = {
     farg: '#9fd4c8',
     motiv: '<path d="M8 3c-2 4 3 6 1 10s-4 5-1 8"/><path d="M14 3c-2 4 3 6 1 10s-4 5-1 8"/><circle cx="17.5" cy="15" r="1.6" class="fylld"/>',
     ladda: () => import('./luckor/06-fjallbacken.js'),
+  },
+  7: {
+    namn: 'Frostängen',
+    farg: '#cfe0ec',
+    motiv: '<ellipse cx="9" cy="15.5" rx="2.4" ry="4" class="fylld"/><ellipse cx="9" cy="21" rx="1.6" ry="1.4" class="fylld"/><ellipse cx="15.5" cy="6.5" rx="2.4" ry="4" class="fylld"/><ellipse cx="15.5" cy="12" rx="1.6" ry="1.4" class="fylld"/>',
+    ladda: () => import('./luckor/07-frostangen.js'),
   },
 };
 
@@ -190,6 +197,9 @@ async function kliverUt() {
   }
   oppenDorr = null;
   upptagen = false;
+
+  // Efter en vecka, två, tre och på julafton singlar lite konfetti ner
+  if (nyMilstolpe(oppnade().size)) setTimeout(visaKonfetti, 500);
 }
 
 lista.addEventListener('click', (e) => {
