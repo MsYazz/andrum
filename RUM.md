@@ -36,7 +36,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 19 | **Vindspelet** | Vinden får kläppen att slå mot rören. Svep ger vindbyar, lutning blåser, ett tryck slår an ett rör | Kopplade pendlar, modalsyntes, gyro | Klar |
 | 20 | **Strandkanten** | Skriver i den våta sanden och en våg sköljer upp och slätar ut det. Det är meningen att det ska försvinna | Höjdfält, svall med skumspets | Klar |
 | 21 | **Längsta natten** | Vintersolståndet. Drar från stjärna till stjärna och gör egna stjärnbilder som klingar. Lutningen förskjuter himlen mot skogen | Instansierade ljuspunkter, parallax, gyro | Klar |
-| 22 | **Maskrosbollen** | En minnesbild från sommaren. Ett svep förbi bollen är en pust, och fröna seglar iväg på sina fallskärmar. Sedan växer en ny boll fram | Frön på ett klot, vindfält | Klar |
+| 22 | **Snögloben** | Skakar, lutar eller sveper över en snöglob med en röd stuga och en tänd gran, och snön virvlar upp och singlar sakta ner. Ett tryck på foten drar upp speldosan | Virvelflöde, tyngd från rörelsesensorn, speldosa | Klar |
 | 23 | **Degen** | Bakdag. Trycker och knådar en mjuk, varm deg. Groparna fylls långsamt igen när degen jäser | Segt, fjädrande höjdfält | |
 | 24 | **Grottan** | Ett varmt grottrum med bäcken, glöden och eldflugorna från tidigare rum. En plats att vila på utan dåligt samvete | Allt tillsammans | |
 
@@ -50,3 +50,4 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 - **Katten** (var lucka 23): hon har en riktig katt, och en skärm kan inte ersätta den.
 - **Mossan** (var lucka 11): mönstren påminde mer om en bakterieodling än om mossa. Garnnystanet tog dess plats.
 - **Garnnystanet** (var lucka 11): poängen var svår att förstå. Tomteblosset tog dess plats.
+- **Maskrosbollen** (var lucka 22): inte tillräckligt juligt. Snögloben tog dess plats.
