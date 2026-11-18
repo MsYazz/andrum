@@ -51,6 +51,12 @@ const RUM = {
     motiv: '<ellipse cx="9" cy="15.5" rx="2.4" ry="4" class="fylld"/><ellipse cx="9" cy="21" rx="1.6" ry="1.4" class="fylld"/><ellipse cx="15.5" cy="6.5" rx="2.4" ry="4" class="fylld"/><ellipse cx="15.5" cy="12" rx="1.6" ry="1.4" class="fylld"/>',
     ladda: () => import('./luckor/07-frostangen.js'),
   },
+  8: {
+    namn: 'Isfönstret',
+    farg: '#b9cdf0',
+    motiv: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 12h14M12 3v18"/><path d="M6.5 19.5l3-3M6.5 16.5l1.5-1.5M8.5 19.5l1.5-1.5M17.5 4.5l-3 3M17.5 7.5L16 9M15.5 4.5L14 6"/>',
+    ladda: () => import('./luckor/08-isfonstret.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';

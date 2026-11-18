@@ -22,7 +22,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 5 | **Glöden** | Fläktar med fingret så tar lågorna fart. Svep uppåt blåser upp gnistor, ett tryck rör om i glöden | Brusfält, cellmönster, gnistor | Klar |
 | 6 | **Fjällbäcken** | Lägger fingret som en sten och vattnet porlar och skummar runt den. Björklöv flyter med | Stable Fluids, flödeskarta | Klar |
 | 7 | **Frostängen** | Går med fingertopparna över en frostig äng. Varje steg knastrar och lämnar ett grönt fotspår som långsamt frostar igen. Första konfettin | Frostfält, strån längs ett riktningsfält | Klar |
-| 8 | **Isfönstret** | Frost växer på glaset. Hon andas på det och smälter ett titthål | DLA-tillväxt | |
+| 8 | **Isfönstret** | Isblommor växer in från kanterna. Fingret mot rutan smälter ett titthål mot en stuga med varma fönster | Kristallväxt (DLA) | Klar |
 | 9 | **Tjärnen** | Droppar faller där hon trycker. Ringar möts och tonar bort | Vågekvationen | |
 | 10 | **Bläckdroppen** | En droppe bläck blommar ut i vatten. Fingret rör om | Vätska och färgadvektion | |
 | 11 | **Mossan** | Mossa och lav växer långsamt där hon håller fingret | Reaktion-diffusion | |
