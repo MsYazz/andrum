@@ -38,6 +38,12 @@ const RUM = {
     motiv: '<path d="M12 3c1.5 3.5 5 5.5 5 9.5a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.6 1.2 2.6 2.2 3C10.7 8.6 11 5.6 12 3z"/><path d="M5 20.5l14-3M5 17.5l14 3"/>',
     ladda: () => import('./luckor/05-gloden.js'),
   },
+  6: {
+    namn: 'Fjällbäcken',
+    farg: '#9fd4c8',
+    motiv: '<path d="M8 3c-2 4 3 6 1 10s-4 5-1 8"/><path d="M14 3c-2 4 3 6 1 10s-4 5-1 8"/><circle cx="17.5" cy="15" r="1.6" class="fylld"/>',
+    ladda: () => import('./luckor/06-fjallbacken.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
