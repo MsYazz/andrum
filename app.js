@@ -63,6 +63,12 @@ const RUM = {
     motiv: '<path d="M12 3c2.2 3 3.6 5 3.6 6.8a3.6 3.6 0 0 1-7.2 0C8.4 8 9.8 6 12 3z" class="fylld"/><ellipse cx="12" cy="18.5" rx="4" ry="1.2"/><ellipse cx="12" cy="18.5" rx="8" ry="2.6"/>',
     ladda: () => import('./luckor/09-tjarnen.js'),
   },
+  10: {
+    namn: 'Bläckdroppen',
+    farg: '#c4b8e8',
+    motiv: '<path d="M12 3c1.6 2.2 2.6 3.7 2.6 5a2.6 2.6 0 0 1-5.2 0c0-1.3 1-2.8 2.6-5z" class="fylld"/><path d="M12 12c-3 2-5 4-4 7 1 2 3 1 4-1 1 2 3 3 4 1 1-3-1-5-4-7z"/>',
+    ladda: () => import('./luckor/10-blackdroppen.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
