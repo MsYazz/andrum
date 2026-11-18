@@ -1,6 +1,7 @@
 import { ljud, vaknaLjud, duns } from './lib/ljud.js';
 import { knack } from './lib/haptik.js';
 import { begarRorelse } from './lib/rorelse.js';
+import { visaIntro } from './lib/intro.js';
 
 // Rummen som finns. Färgen är ljuset som strömmar ut genom dörren.
 // Motivet präglas i den övre dörrspegeln första gången dörren öppnas (SVG, 24x24).
@@ -201,6 +202,7 @@ document.addEventListener('visibilitychange', async () => {
 });
 
 ritaKalender();
+visaIntro();
 
 const lokal = ['localhost', '127.0.0.1'].includes(location.hostname);
 if ('serviceWorker' in navigator && !lokal) {
