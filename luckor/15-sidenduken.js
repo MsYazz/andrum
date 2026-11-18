@@ -110,14 +110,19 @@ export default {
       if (i < NX - 1) lagg(k, k + 1, 1);
       if (j < NY - 1) lagg(k, k + NX, 1);
       if (i < NX - 1 && j < NY - 1) { lagg(k, k + NX + 1, 0.5); lagg(k + 1, k + NX, 0.5); }
-      if (i < NX - 2) lagg(k, k + 2, 0.15);
-      if (j < NY - 2) lagg(k, k + 2 * NX, 0.15);
+      if (i < NX - 2) lagg(k, k + 2, 0.3);
+      if (j < NY - 2) lagg(k, k + 2 * NX, 0.45);
+      // Fållen längst ner och kanterna är lite styvare, så att de inte rullar ihop sig
+      if (j >= NY - 3 && i < NX - 3) lagg(k, k + 3, 0.35);
+      if ((i < 2 || i > NX - 3) && j < NY - 3) lagg(k, k + 3 * NX, 0.35);
     }
     for (let k = 0; k < N; k++) {
       P[k * 3] *= 0.84;
       P[k * 3 + 2] = Math.sin((k % NX) * 1.1) * 0.012;
     }
     PP.set(P);
+    // Viloläget i sidled, som duken långsamt söker sig tillbaka mot
+    const vila = Float32Array.from(P);
 
     let grepp = -1;
     const greppPos = [0, 0];
@@ -126,7 +131,7 @@ export default {
 
     function fysik(dt) {
       vindTid += dt;
-      const g = -1.4;
+      const g0 = -1.4;
       // En mjuk, ojämn vind som kommer och går
       const pust = 0.5 + 0.5 * Math.sin(vindTid * 0.31) * Math.sin(vindTid * 0.17 + 1);
       let energi = 0;
@@ -137,6 +142,8 @@ export default {
         const vx = (x - PP[i3]) * 0.985, vy = (y - PP[i3 + 1]) * 0.985, vz = (z - PP[i3 + 2]) * 0.985;
         energi += vx * vx + vy * vy + vz * vz;
         const kol = k % NX, rad = (k / NX) | 0;
+        // En tyngre fåll håller nederkanten rak
+        const g = rad >= NY - 2 ? g0 * 2.2 : g0;
         const vind = (0.25 + 0.55 * pust) * (0.6 + 0.4 * Math.sin(kol * 0.35 + vindTid * 1.3 + rad * 0.12));
         PP[i3] = x; PP[i3 + 1] = y; PP[i3 + 2] = z;
         P[i3] = x + vx + (vind * 0.25) * dt * dt;
@@ -158,6 +165,43 @@ export default {
           P[b3] -= dx * diff * kb; P[b3 + 1] -= dy * diff * kb; P[b3 + 2] -= dz * diff * kb;
         }
         if (grepp >= 0) { P[grepp * 3] = greppPos[0]; P[grepp * 3 + 1] = greppPos[1]; }
+      }
+      ordna(dt);
+    }
+
+    // Tyget ska inte kunna trassla in sig. Varje punkt ska ligga under punkten ovanför
+    // och till höger om punkten till vänster, och duken drar sig mjukt tillbaka mot sin
+    // form. Medan hon håller i duken får den vika sig fritt, men så fort hon släpper
+    // vecklar den mjukt ut sig igen. Ett veck kan alltså aldrig bli ett trassel.
+    const MIN_Y = steg * 0.35, MIN_X = steg * 0.3, MAX_Z = 0.14;
+    let slapptTid = 99;
+    function ordna(dt) {
+      slapptTid = grepp >= 0 ? 0 : slapptTid + dt;
+      // Hur hårt reglerna gäller: svagt medan hon håller, sedan allt starkare
+      const k0 = grepp >= 0 ? 0.01 : Math.min(0.25, 0.03 + slapptTid * 0.3);
+      const hem = grepp >= 0 ? 0 : Math.min(1, slapptTid * 0.5);
+      for (let j = 1; j < NY; j++) for (let i = 0; i < NX; i++) {
+        const k = j * NX + i;
+        if (fast[k] || k === grepp) continue;
+        const k3 = k * 3;
+        const ovan = (k - NX) * 3;
+        const fy = P[k3 + 1] - (P[ovan + 1] - MIN_Y);
+        if (fy > 0) P[k3 + 1] -= fy * k0;
+        if (i > 0) {
+          const v = (k - 1) * 3;
+          const fx = P[v] + MIN_X - P[k3];
+          if (fx > 0) {
+            P[k3] += fx * k0 * 0.5;
+            if (k - 1 !== grepp) P[v] -= fx * k0 * 0.5;
+          }
+        }
+        // Formminne: tyget hittar alltid tillbaka till hur det hänger, hur det än vikts
+        const m = (slapptTid < 8 ? 0.004 : 0.0015) * hem;
+        P[k3] += (vila[k3] - P[k3]) * m;
+        P[k3 + 1] += (vila[k3 + 1] - P[k3 + 1]) * m * 0.5;
+        P[k3 + 2] += (vila[k3 + 2] - P[k3 + 2]) * m;
+        const z = P[k3 + 2];
+        if (Math.abs(z) > MAX_Z) P[k3 + 2] -= (z - Math.sign(z) * MAX_Z) * 0.2;
       }
     }
 
