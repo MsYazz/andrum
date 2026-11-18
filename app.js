@@ -112,6 +112,12 @@ const RUM = {
     motiv: '<path d="M4 11h16c0 5-3.5 8-8 8s-8-3-8-8z"/><path d="M9 7c1-1.5 2-1.5 3 0s2 1.5 3 0"/><path d="M7 4c1.5-1.5 3-1.5 5 0s3.5 1.5 5 0"/>',
     ladda: () => import('./luckor/17-klangskalen.js'),
   },
+  18: {
+    namn: 'Pendelvågen',
+    farg: '#e0c48c',
+    motiv: '<path d="M3 4h18"/><path d="M6 4l-1 11M10 4l0 13M14 4l1 11M18 4l2 8"/><circle cx="5" cy="16" r="1.4" class="fylld"/><circle cx="10" cy="18" r="1.4" class="fylld"/><circle cx="15" cy="16" r="1.4" class="fylld"/><circle cx="20" cy="13" r="1.4" class="fylld"/>',
+    ladda: () => import('./luckor/18-pendelvagen.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';

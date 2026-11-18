@@ -32,7 +32,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 15 | **Sidenduken** | Skiftande siden i veck som böljar i vinden. Hon kan ta tag och dra i det | Verlet-tyg i 3D | Klar |
 | 16 | **Tuschpenseln** | Penseldrag på rispapper: långsamt blir brett, fort blir torrt och strimmigt. Bläcket flyter ut i fibrerna | Vatten och pigment i fibrer | Klar |
 | 17 | **Klangskålen** | Ett tryck slår an skålen, fingret runt kanten får den att sjunga. Vattnet i skålen darrar med tonen | Modalsyntes med svävningar | Klar |
-| 18 | **Pendelvågen** | Femton pendlar glider in och ur mönster | Pendelfysik | |
+| 18 | **Pendelvågen** | Femton pendlar uppifrån glider in och ur ormar och vågor, med en ton för varje vändning. Ett tryck samlar dem | Pendelvåg med 90 sekunders cykel | Klar |
 | 19 | **Vindspelet** | Lutar telefonen och små rör klingar mjukt | Fysikalisk modellering av ljud | |
 | 20 | **Strandkanten** | Skriver i sanden och en våg sköljer bort det. Det är meningen att det ska försvinna | Grundvattenvågor | |
 | 21 | **Längsta natten** | Vintersolståndet. Drar linjer mellan stjärnor till egna stjärnbilder | Stilla parallax | |

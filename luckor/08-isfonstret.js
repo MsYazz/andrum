@@ -204,11 +204,19 @@ export default {
     gl.uniform2f(u.u_rut, FW, FH);
 
     // ---------- Fingret ----------
-    const finger = { x: 0, y: 0, nere: false, varme: 0, radie: 0 };
+    const finger = { x: 0, y: 0, nere: false, varme: 0, radie: 0, fart: 0, t: 0 };
     const tillRut = (x, y) => [x / duk.clientWidth, y / duk.clientHeight];
     fingrar(duk, {
-      ner: (x, y) => { [finger.x, finger.y] = tillRut(x, y); finger.nere = true; finger.radie = 0.02; },
-      drag: (x, y) => { [finger.x, finger.y] = tillRut(x, y); },
+      ner: (x, y, id, e) => { [finger.x, finger.y] = tillRut(x, y); finger.nere = true; finger.radie = 0.02; finger.t = e.timeStamp; },
+      drag: (x, y, id, e) => {
+        // Hur fort fingret gnider mot rutan, i skärmbredder per sekund
+        const [nx, ny] = tillRut(x, y);
+        const d = Math.hypot(nx - finger.x, (ny - finger.y) * (duk.clientHeight / duk.clientWidth));
+        const dt = Math.max(8, e.timeStamp - finger.t) / 1000;
+        finger.fart = Math.min(3, finger.fart + d / dt * 0.25);
+        finger.t = e.timeStamp;
+        finger.x = nx; finger.y = ny;
+      },
       upp: () => { finger.nere = false; },
     });
 
@@ -245,11 +253,18 @@ export default {
     // Vinden som viner utanför fönstret
     const vind = skapaVind(ctx, ut, { styrka: 1 });
     // Värmen från fingret: ett mjukt sus
-    const andning = brusKalla('rosa');
-    const andF = ctx.createBiquadFilter(); andF.type = 'bandpass'; andF.frequency.value = 900; andF.Q.value = 0.5;
-    const andG = ctx.createGain(); andG.gain.value = 0;
-    andning.connect(andF).connect(andG).connect(ut);
-    l.kallor.push(rumston, andning, ...vind.kallor);
+    // Fingret som gnider mot glaset: ett torrt, kornigt skrap och ett svagt gnissel
+    // som bara hörs när fingret rör sig, och stiger i ton med farten
+    const gnid = brusKalla('korn');
+    const gnF = ctx.createBiquadFilter(); gnF.type = 'bandpass'; gnF.frequency.value = 1800; gnF.Q.value = 2.5;
+    const gnHp = ctx.createBiquadFilter(); gnHp.type = 'highpass'; gnHp.frequency.value = 700;
+    const gnG = ctx.createGain(); gnG.gain.value = 0;
+    gnid.connect(gnF).connect(gnHp).connect(gnG).connect(ut);
+    const gnissel = brusKalla('rosa');
+    const giF = ctx.createBiquadFilter(); giF.type = 'bandpass'; giF.frequency.value = 1100; giF.Q.value = 22;
+    const giG = ctx.createGain(); giG.gain.value = 0;
+    gnissel.connect(giF).connect(giG).connect(ut);
+    l.kallor.push(rumston, gnid, gnissel, ...vind.kallor);
 
     // ---------- Ritslinga ----------
     let knasterTid = 1;
@@ -257,7 +272,7 @@ export default {
       for (let i = 0; i < N; i++) if (skydd[i] > 0) skydd[i] -= dt;
       // Frosten växer långsamt, så att man kan se den kräla fram under flera minuter
       const vaxt = vaxa(Math.floor(2200 * Math.min(2, dt * 60)));
-      const smalte = smalt(dt);
+      smalt(dt);
       finger.varme += ((finger.nere ? 1 : 0) - finger.varme) * Math.min(1, dt * 2.5);
 
       // Ett svagt knaster när frosten växer, och ett sus när fingret värmer
@@ -268,7 +283,13 @@ export default {
         knasterTid = slump(0.2, 1.4);
       }
       vind.uppdatera(dt);
-      andG.gain.setTargetAtTime(0.03 * finger.varme + Math.min(0.02, smalte * 0.002), t, 0.15);
+      finger.fart *= Math.exp(-dt * 8);
+      const gf = finger.nere ? Math.min(1, finger.fart) : 0;
+      gnG.gain.setTargetAtTime(0.07 * gf, t, 0.03);
+      gnF.frequency.setTargetAtTime(1400 + 1400 * gf, t, 0.05);
+      // Gnisslet hackar lite, som när huden fastnar och släpper mot glaset
+      giG.gain.setTargetAtTime(0.025 * gf * (0.4 + 0.6 * Math.random()), t, 0.02);
+      giF.frequency.setTargetAtTime(900 + 700 * gf, t, 0.08);
 
       utjamna();
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, FW, FH, gl.RED, gl.FLOAT, Fm);
