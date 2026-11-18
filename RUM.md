@@ -17,7 +17,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 |---|---|---|---|---|
 | 1 | **Andetaget** | En glödande dimma vidgas och drar ihop sig i tio andetag (resonansandning, 4 s in och 6 s ut) | Brusfält, mjuk puls, pentatoniska toner | Klar |
 | 2 | **Sandlådan** | Krattar i sand med en stel kratta med fem pinnar. Stenarna slumpas fram varje gång | Höjdfält, rasvinkel, granulärt ljud | Klar |
-| 3 | **Lavalampan** | Lutar telefonen och vaxet följer med i slow motion | Metabollar, konvektion | |
+| 3 | **Lavalampan** | Klumpar stiger ur pölen, svalnar och sjunker. Fingret värmer vaxet, och lutar hon telefonen stiger vaxet ändå uppåt | Metabollar, termisk tröghet | Klar |
 | 4 | **Timglaset** | Vänder telefonen och lyssnar på sanden som rinner | Partiklar, gyro | |
 | 5 | **Glöden** | Blåser försiktigt i mikrofonen så flammar elden upp och knastrar | Curl noise, mikrofon | |
 | 6 | **Fjällbäcken** | Lägger fingret som en sten och vattnet porlar runt den | Stable Fluids | |

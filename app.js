@@ -1,5 +1,6 @@
 import { ljud, vaknaLjud, duns } from './lib/ljud.js';
 import { knack } from './lib/haptik.js';
+import { begarRorelse } from './lib/rorelse.js';
 
 // Rummen som finns. Färgen är ljuset som strömmar ut genom dörren.
 // Motivet präglas i den övre dörrspegeln första gången dörren öppnas (SVG, 24x24).
@@ -15,6 +16,13 @@ const RUM = {
     farg: '#eadcc0',
     motiv: '<ellipse cx="12" cy="12" rx="3.3" ry="2.7" class="fylld"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="9"/>',
     ladda: () => import('./luckor/02-sandladan.js'),
+  },
+  3: {
+    namn: 'Lavalampan',
+    farg: '#ff8f6b',
+    motiv: '<path d="M9.5 3h5l2.6 12.5H6.9z"/><path d="M6.9 15.5h10.2l-1.6 5.5h-7z"/><circle cx="11" cy="8.5" r="1.5" class="fylld"/><circle cx="13.2" cy="12" r="1.1" class="fylld"/>',
+    rorelse: true,
+    ladda: () => import('./luckor/03-lavalampan.js'),
   },
 };
 
@@ -93,6 +101,7 @@ async function kliverIn(dorr) {
   // Ljud och vibration måste startas direkt i tryckningen (krav i iOS).
   ljud();
   knack();
+  if (RUM[n].rorelse) begarRorelse();
   const laddning = RUM[n].ladda();
   oppenDorr = dorr;
 
