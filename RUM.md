@@ -25,7 +25,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 8 | **Isfönstret** | Isblommor växer in från kanterna. Fingret mot rutan smälter ett titthål mot en stuga med varma fönster | Kristallväxt (DLA) | Klar |
 | 9 | **Tjärnen** | Droppar faller där hon trycker och ringarna bryter spegelbilden av månen och granarna. Näckrosblad guppar | Vågekvationen | Klar |
 | 10 | **Bläckdroppen** | Droppar av bläck sjunker och vecklar ut sig i plymer i ett glas vatten. Fingret rör om | Stable Fluids, MacCormack-advektion | Klar |
-| 11 | **Mossan** | Fingret fuktar en granitsten, och mossa och lav växer långsamt ut därifrån | Reaktion-diffusion (Gray-Scott) | Klar |
+| 11 | **Garnnystanet** | Drar ut tråden ur ett ullnystan som snurrar. Släpper hon ringlar sig tråden sakta tillbaka in | Verlet-kedja, lindat klot | Klar |
 | 12 | **Norrskenet** | Slöjor i veck böljar över fjällen. Fingret får dem att bölja och lysa starkare, lutningen får dem att glida | Brusfält i lager, gyro | Klar |
 | 13 | **Luciaskenet** | Ett stearinljus i mörkret. Lågan lutar sig undan för fingret som för ett drag och svajar tillbaka. Stearinet rinner | Låga, fjädrande lutning | Klar |
 | 14 | **Eldflugorna** | Eldflugor samlas långsamt runt fingret och börjar blinka i takt, tills svärmen pulserar tillsammans | Svärm, Kuramoto-synkning | Klar |
@@ -42,10 +42,10 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 
 ## Reserver
 
-- **Garnnystanet:** ett nystan som rullas ut med fingret och lindas upp igen.
 - **Regnet på rutan:** droppar som rinner, går ihop och lämnar spår på ett fönster.
 
 ## Strukna
 
 - **Promenaden** (var lucka 7): för många beroenden, som stegräknare, ljud med släckt skärm, ork och väder. Andan i den lever vidare i Frostängen.
 - **Katten** (var lucka 23): hon har en riktig katt, och en skärm kan inte ersätta den.
+- **Mossan** (var lucka 11): mönstren påminde mer om en bakterieodling än om mossa. Garnnystanet tog dess plats.

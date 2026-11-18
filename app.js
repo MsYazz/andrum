@@ -70,10 +70,10 @@ const RUM = {
     ladda: () => import('./luckor/10-blackdroppen.js'),
   },
   11: {
-    namn: 'Mossan',
-    farg: '#a8c98a',
-    motiv: '<path d="M4 20c2-1 3-4 5-4s2 3 4 3 2-5 4-5 2 4 3 6"/><circle cx="8" cy="12" r="2" class="fylld"/><circle cx="13" cy="9" r="2.6" class="fylld"/><circle cx="17.5" cy="12.5" r="1.6" class="fylld"/>',
-    ladda: () => import('./luckor/11-mossan.js'),
+    namn: 'Garnnystanet',
+    farg: '#e3b77a',
+    motiv: '<circle cx="10" cy="11" r="6.5"/><path d="M5 8c3 1 7 1 10 0M4.5 12c3 1.5 8 1.5 11 0M7 16c2-3 6-9 7-11"/><path d="M15.5 15c2 1 3 3 5 3"/>',
+    ladda: () => import('./luckor/11-garnnystanet.js'),
   },
   12: {
     namn: 'Norrskenet',
