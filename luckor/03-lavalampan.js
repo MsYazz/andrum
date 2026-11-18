@@ -231,7 +231,7 @@ export default {
     susFilter.frequency.value = 240;
     susFilter.Q.value = 0.5;
     const susGain = ctx.createGain();
-    susGain.gain.value = 0.11;
+    susGain.gain.value = 0.04;
     const susLfo = ctx.createOscillator();
     susLfo.frequency.value = 0.045;
     const susDjup = ctx.createGain();
@@ -241,28 +241,32 @@ export default {
     susLfo.start();
     kallor.push(sus, susLfo);
 
-    // Ett mjukt blubb när en klump lossnar från pölen eller flyter ihop med den
+    // Blubb. Stora klumpar blubbar dovt, små ljusare. Ibland blir det ett dubbelblubb.
     let senastBlubb = 0;
-    function blubb(uppat) {
-      const nu = performance.now();
-      if (nu - senastBlubb < 1500) return;
-      senastBlubb = nu;
-      const t = ctx.currentTime;
-      const f0 = uppat ? slump(210, 260) : slump(150, 190);
+    function enBubbla(t, f0, styrka) {
       const o = ctx.createOscillator();
       o.type = 'sine';
       o.frequency.setValueAtTime(f0, t);
-      o.frequency.exponentialRampToValueAtTime(f0 * 1.5, t + 0.14);
+      o.frequency.exponentialRampToValueAtTime(f0 * 1.55, t + 0.12);
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass';
-      lp.frequency.value = 700;
+      lp.frequency.value = 800;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.045, t + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      g.gain.linearRampToValueAtTime(styrka, t + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
       o.connect(lp).connect(g).connect(ut);
       o.start(t);
-      o.stop(t + 0.35);
+      o.stop(t + 0.32);
+    }
+    function blubb(r, { uppat = false, styrka = 0.075 } = {}) {
+      const nu = performance.now();
+      if (nu - senastBlubb < 280) return;
+      senastBlubb = nu;
+      const t = ctx.currentTime;
+      const f0 = (120 + (0.13 - r) * 1500) * (uppat ? 1.2 : 1) * slump(0.92, 1.08);
+      enBubbla(t, f0, styrka);
+      if (Math.random() < 0.3) enBubbla(t + slump(0.07, 0.13), f0 * slump(1.15, 1.35), styrka * 0.55);
     }
 
     // ---------- Ritslinga ----------
@@ -272,6 +276,8 @@ export default {
     let raf = 0;
     let stoppad = false;
     const data = new Float32Array(N * 4);
+    const moten = new Set();   // par av klumpar som just nu flyter ihop
+    let blubbForra = t0;
 
     function packa(tid) {
       let i = 0;
@@ -318,11 +324,29 @@ export default {
       while (ack >= 1 / 120 && n < 12 * TIDSSKALA) { steg(1 / 120, lampa); ack -= 1 / 120; n++; }
       if (n >= 12 * TIDSSKALA) ack = 0;
 
-      // Blubb när en klump lossnar från pölen eller sjunker ner i den
-      for (const k of klumpar) {
-        const iPol = k.y < k.r * 1.1;
-        if (iPol !== k.iPol && tid > 4) blubb(!iPol);
-        k.iPol = iPol;
+      // Blubb när en klump lossnar från pölen eller sjunker ner i den,
+      // när två klumpar flyter ihop eller släpper varandra,
+      // och då och då av sig själv medan en klump rör sig
+      const sek = Math.min(0.1, (nu - blubbForra) / 1000) * TIDSSKALA;
+      blubbForra = nu;
+      if (tid > 4) {
+        for (const k of klumpar) {
+          const iPol = k.y < k.r * 1.1;
+          if (iPol !== k.iPol) blubb(k.r, { uppat: !iPol });
+          k.iPol = iPol;
+          const fart = Math.hypot(k.vx, k.vy);
+          if (!iPol && Math.random() < sek * (0.06 + fart * 0.9)) blubb(k.r, { styrka: 0.045 });
+        }
+        for (let i = 0; i < KLUMPAR; i++) {
+          for (let j = i + 1; j < KLUMPAR; j++) {
+            const a = klumpar[i], b = klumpar[j];
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            const nyckel = i * KLUMPAR + j;
+            const ihop = moten.has(nyckel);
+            if (!ihop && d < (a.r + b.r) * 0.95) { moten.add(nyckel); blubb(Math.max(a.r, b.r)); }
+            else if (ihop && d > (a.r + b.r) * 1.1) { moten.delete(nyckel); blubb(Math.min(a.r, b.r), { uppat: true, styrka: 0.06 }); }
+          }
+        }
       }
 
       packa(tid);
