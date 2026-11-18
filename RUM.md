@@ -27,7 +27,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 10 | **Bläckdroppen** | Droppar av bläck sjunker och vecklar ut sig i plymer i ett glas vatten. Fingret rör om | Stable Fluids, MacCormack-advektion | Klar |
 | 11 | **Mossan** | Fingret fuktar en granitsten, och mossa och lav växer långsamt ut därifrån | Reaktion-diffusion (Gray-Scott) | Klar |
 | 12 | **Norrskenet** | Slöjor i veck böljar över fjällen. Fingret får dem att bölja och lysa starkare, lutningen får dem att glida | Brusfält i lager, gyro | Klar |
-| 13 | **Luciaskenet** | Ett stearinljus som fladdrar av hennes andetag. Stearinet rinner | Låga och vaxsimulering | |
+| 13 | **Luciaskenet** | Ett stearinljus i mörkret. Lågan lutar sig undan för fingret som för ett drag och svajar tillbaka. Stearinet rinner | Låga, fjädrande lutning | Klar |
 | 14 | **Eldflugorna** | En svärm följer fingret långsamt och samlas i handflatan | Boids | |
 | 15 | **Sidenduken** | Ett tyg vajar i vinden. Hon kan dra i det | Verlet-tyg | |
 | 16 | **Tuschpenseln** | Penselstreck på rispapper. Bläcket flyter ut i fibrerna | Diffusion i papper | |

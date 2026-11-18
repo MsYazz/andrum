@@ -82,6 +82,12 @@ const RUM = {
     rorelse: true,
     ladda: () => import('./luckor/12-norrskenet.js'),
   },
+  13: {
+    namn: 'Luciaskenet',
+    farg: '#ffd28a',
+    motiv: '<path d="M12 3c1.3 1.8 2 3 2 4.2a2 2 0 0 1-4 0C10 6 10.7 4.8 12 3z" class="fylld"/><rect x="9.5" y="10" width="5" height="9" rx="0.6"/><path d="M6 21h12"/>',
+    ladda: () => import('./luckor/13-luciaskenet.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
