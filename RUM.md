@@ -25,7 +25,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 8 | **Isfönstret** | Isblommor växer in från kanterna. Fingret mot rutan smälter ett titthål mot en stuga med varma fönster | Kristallväxt (DLA) | Klar |
 | 9 | **Tjärnen** | Droppar faller där hon trycker och ringarna bryter spegelbilden av månen och granarna. Näckrosblad guppar | Vågekvationen | Klar |
 | 10 | **Bläckdroppen** | Droppar av bläck sjunker och vecklar ut sig i plymer i ett glas vatten. Fingret rör om | Stable Fluids, MacCormack-advektion | Klar |
-| 11 | **Tomteblosset** | Ritar i vintermörkret med ett tomtebloss. Ljusspåren dröjer kvar som efterbilder och svalnar från vitt till guld och rött | Bleknande spårbild, gnistor som delar sig | Klar |
+| 11 | **Tomteblosset** | Ritar i vintermörkret med ett tomtebloss. Ljusspåren dröjer kvar som efterbilder och svalnar från vitt till guld och rött. Blosset brinner sakta ner, och ett nytt tänds när hon tar det | Bleknande spårbild, gnistor som delar sig | Klar |
 | 12 | **Norrskenet** | Slöjor i veck böljar över fjällen. Fingret får dem att bölja och lysa starkare, lutningen får dem att glida | Brusfält i lager, gyro | Klar |
 | 13 | **Luciaskenet** | Ett stearinljus i mörkret. Lågan lutar sig undan för fingret som för ett drag och svajar tillbaka. Stearinet rinner | Låga, fjädrande lutning | Klar |
 | 14 | **Eldflugorna** | Eldflugor samlas långsamt runt fingret och börjar blinka i takt, tills svärmen pulserar tillsammans | Svärm, Kuramoto-synkning | Klar |

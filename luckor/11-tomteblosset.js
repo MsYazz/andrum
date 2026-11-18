@@ -3,6 +3,9 @@
 // fingret och ritar i luften, och ljuset lämnar spår som dröjer kvar, som efterbilder
 // på näthinnan. Spåren bleknar sakta från vitt över guld och orange till en svag glöd.
 // Gnistorna sprakar mjukt och delar sig i små grenar, som på ett riktigt tomtebloss.
+// Hon håller i handtaget, och glöden kryper sakta ner längs satsen. När bara handtaget
+// är kvar slocknar blosset, och ett nytt, otänt glider upp i nederkanten. Tar hon det
+// tänds det av sig självt.
 //
 // Ljusspåren ritas i en bild som aldrig töms, bara bleknar lite för varje bildruta.
 // Blått bleknar fortast och rött långsammast, så att spåren svalnar i färg.
@@ -90,7 +93,11 @@ out vec4 frag;
 uniform sampler2D u_spar;
 uniform vec2 u_res;
 uniform float u_tid;
-uniform vec4 u_bloss;     // topp x, y, handtag x, y
+uniform vec4 u_bloss;     // blossets nedre ände x, y och övre ände x, y
+uniform float u_brand;    // hur långt ner glöden har kommit (1 längst upp, 0,2 vid handtaget)
+uniform vec4 u_nytt;      // ett nytt, otänt bloss i nederkanten: nedre och övre ände
+uniform float u_nyttA;    // hur synligt det nya blosset är
+uniform vec2 u_punkt;     // var glöden sitter
 uniform float u_glod;
 uniform float u_synlig;
 ${BRUS}
@@ -99,6 +106,34 @@ float segment(vec2 p, vec2 a, vec2 b, out float h) {
   vec2 pa = p - a, ba = b - a;
   h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-8), 0.0, 1.0);
   return length(pa - ba * h);
+}
+
+// Ett tomtebloss: blank ståltråd som handtag, svart sats ovanför, och ovanför glöden
+// den utbrända tråden som är het närmast glöden och sedan svalnar till grå aska.
+vec3 stav(vec3 c, vec2 p, vec2 B, vec2 T, float brand, float glod, float alfa) {
+  float h;
+  float d = segment(p, B, T, h);
+  if (d > 0.006) return c;
+  vec3 f;
+  float w;
+  if (h < 0.2) {
+    w = 0.0016;
+    f = vec3(0.55, 0.57, 0.6) + vec3(0.35) * smoothstep(0.0012, 0.0, d);
+  } else if (h < brand) {
+    w = 0.0034;
+    f = vec3(0.16, 0.16, 0.18) * (0.8 + 0.4 * hash(floor(p * 900.0)));
+    // En smal ljusreflex längs satsen, så att blosset syns mot mörkret
+    f += vec3(0.45, 0.47, 0.55) * smoothstep(0.0016, 0.0, abs(d - 0.0012)) * 0.35;
+    // Ett otänt bloss glimmar långsamt, som för att locka
+    f += vec3(0.6, 0.6, 0.7) * exp(-pow((h - fract(u_tid * 0.15) * 1.4 + 0.2) * 9.0, 2.0)) * 0.25 * (1.0 - step(0.001, glod)) * step(0.999, brand);
+  } else {
+    w = 0.0014;
+    float het = exp(-(h - brand) * 40.0) * glod;
+    f = mix(vec3(0.3, 0.27, 0.25), vec3(1.0, 0.55, 0.2), het);
+  }
+  // Glöden lyser upp satsen strax under sig
+  f += vec3(1.0, 0.6, 0.25) * exp(-abs(h - brand) * 25.0) * 0.5 * glod;
+  return mix(c, f, smoothstep(w, w * 0.4, d) * alfa);
 }
 
 void main() {
@@ -117,7 +152,7 @@ void main() {
   c += vec3(0.4, 0.22, 0.08) * exp(-dot(p - vec2(0.2, mark + 0.08), p - vec2(0.2, mark + 0.08)) * 300.0) * 0.15;
 
   // Blossets sken lyser upp omgivningen
-  vec2 tp = u_bloss.xy;
+  vec2 tp = u_punkt;
   float dl = length(p - tp);
   vec3 sken = vec3(1.0, 0.6, 0.25) * exp(-dl * dl * 9.0) * 0.12 * u_glod;
   c += sken;
@@ -137,14 +172,9 @@ void main() {
     }
   }
 
-  // Ståltråden från toppen ner mot handen, grå och upplyst nära glöden
-  float h;
-  float dt = segment(p, u_bloss.xy, u_bloss.zw, h);
-  float trad = smoothstep(0.0028, 0.0012, dt);
-  vec3 tradF = mix(vec3(0.85, 0.5, 0.2), vec3(0.22, 0.22, 0.24), smoothstep(0.0, 0.12, h));
-  // Den brända delen närmast toppen är mörk och knottrig, sedan den grå satsen
-  tradF *= 0.6 + 0.6 * exp(-h * 12.0) * u_glod;
-  c = mix(c, tradF, trad);
+  // Blosset hon håller, och ett nytt i nederkanten när det gamla har brunnit ut
+  c = stav(c, p, u_bloss.xy, u_bloss.zw, u_brand, u_glod, 1.0);
+  if (u_nyttA > 0.0) c = stav(c, p, u_nytt.xy, u_nytt.zw, 1.0, 0.0, u_nyttA);
 
   // Ljusspåren, mjukt mappade så att de aldrig bränner ut, med ett sken runt sig
   vec3 spar = texture(u_spar, uv).rgb;
@@ -178,7 +208,7 @@ export default {
     const gnistProg = program(gl, GNISTA_VS, GNISTA_FS);
     const gu = platser(gl, gnistProg, ['u_H']);
     const visaProg = program(gl, HELSKARM, VISA_FS);
-    const vu = platser(gl, visaProg, ['u_spar', 'u_res', 'u_tid', 'u_bloss', 'u_glod', 'u_synlig']);
+    const vu = platser(gl, visaProg, ['u_spar', 'u_res', 'u_tid', 'u_bloss', 'u_brand', 'u_nytt', 'u_nyttA', 'u_punkt', 'u_glod', 'u_synlig']);
 
     // ---------- Spårbilderna, två som turas om ----------
     let bredd = 0, hojd = 0;
@@ -219,13 +249,40 @@ export default {
     const tomVao = gl.createVertexArray();
 
     // ---------- Blosset ----------
+    // Hon håller i handtaget. Glöden sitter högst upp och kryper sakta nedåt längs
+    // satsen. När bara handtaget är kvar slocknar det, och ett nytt, otänt bloss glider
+    // upp i nederkanten. Tar hon det tänds det av sig självt.
     const H = () => duk.clientHeight / duk.clientWidth;
-    const topp = { x: 0.5, y: H() * 0.52 };
-    let forraTopp = { ...topp };
-    const mal = { ...topp };
+    const LANGD = 0.46;
+    const BRINNTID = 75;                    // sekunder från toppen till handtaget
+    const grepp = { x: 0.58, y: H() * 0.3 }; // där handen håller
+    const mal = { ...grepp };
+    let vinkel = 1.78;                       // blosset lutar lite åt vänster
+    let brand = 1;                           // glödens plats längs blosset, 1 = toppen
+    let tand = 1;                            // 1 brinner, 0 slocknat
+    let tander = 0;                          // ett nytt bloss håller på att tändas
     let fart = 0;
-    const handtag = { x: 0.62, y: H() * 0.22 };
     let rorTid = 0;
+    let nytt = null;                         // det otända blosset i nederkanten
+    const punkt = { x: 0, y: 0 };
+    let forraPunkt = null;
+    const stavEnd = () => {
+      const ux = Math.cos(vinkel), uy = Math.sin(vinkel);
+      const Bx = grepp.x - ux * 0.04, By = grepp.y - uy * 0.04;
+      return { Bx, By, Tx: Bx + ux * LANGD, Ty: By + uy * LANGD, ux, uy };
+    };
+    const NYTT_V = 0.32;
+    const nyttLage = (synlig) => {
+      // Det nya blosset ligger snett i nederkanten och glider upp när det dyker upp
+      const ux = Math.cos(NYTT_V), uy = Math.sin(NYTT_V);
+      const Bx = 0.2, By = -0.05 + 0.1 * synlig;
+      return { Bx, By, Tx: Bx + ux * LANGD, Ty: By + uy * LANGD };
+    };
+    const narStav = (x, y, S) => {
+      const ax = S.Tx - S.Bx, ay = S.Ty - S.By;
+      const t = klamp(((x - S.Bx) * ax + (y - S.By) * ay) / (ax * ax + ay * ay), 0, 1);
+      return Math.hypot(x - (S.Bx + ax * t), y - (S.By + ay * t));
+    };
 
     // Gnistorna: korta, snabba, och ibland delar de sig
     const gnistor = Array.from({ length: GNISTOR }, () => ({ liv: 0 }));
@@ -239,12 +296,20 @@ export default {
     fingrar(duk, {
       ner: (x, y) => {
         const [wx, wy] = tillVarld(x, y);
-        // Blosset hålls lite ovanför fingret, så att man ser toppen
-        mal.x = wx; mal.y = wy + 0.07;
+        // Ligger ett nytt bloss i nederkanten och hon tar i det, byts blossen
+        if (nytt && nytt.synlig > 0.5 && narStav(wx, wy, nyttLage(nytt.synlig)) < 0.07) {
+          const N = nyttLage(nytt.synlig);
+          vinkel = NYTT_V;
+          grepp.x = N.Bx + Math.cos(NYTT_V) * 0.04; grepp.y = N.By + Math.sin(NYTT_V) * 0.04;
+          nytt = null;
+          brand = 1; tand = 0; tander = 0.0001;
+          forraPunkt = null;
+        }
+        mal.x = wx; mal.y = wy;
       },
       drag: (x, y) => {
         const [wx, wy] = tillVarld(x, y);
-        mal.x = wx; mal.y = wy + 0.07;
+        mal.x = wx; mal.y = wy;
       },
     });
 
@@ -277,25 +342,61 @@ export default {
     const naG = ctx.createGain(); naG.gain.value = 0.02;
     natt.connect(naF).connect(naG).connect(ut);
     l.kallor.push(sprak, frus, sus, natt);
+    // Ett mjukt fräs när ett bloss tar eld eller slocknar
+    function fras(styrka, langd) {
+      const t = ctx.currentTime;
+      const k = brusKalla('rosa');
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 0.6;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(styrka, t + 0.12);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + langd);
+      k.connect(f).connect(g).connect(ut);
+      setTimeout(() => { try { k.stop(); } catch {} }, (langd + 0.2) * 1000);
+    }
 
     // ---------- Ritslinga ----------
     const stoppa = slinga((tid, dt) => {
-      const glod = mjuk(0.5, 2.5, tid);
-      // Toppen följer fingret mjukt, och svajar lite av sig själv när hon inte rör det
+      // Blosset brinner sakta ner och slocknar när bara handtaget är kvar
+      if (tander > 0) {
+        tander += dt / 0.6;
+        tand = Math.min(1, tander);
+        if (tander >= 1) tander = 0;
+      }
+      if (tand > 0 && tander === 0) {
+        brand -= (dt * 0.8) / BRINNTID;
+        if (brand <= 0.2) { brand = 0.2; tand = 0; fras(0.02, 0.8); nytt = { synlig: 0 }; }
+      }
+      if (nytt) nytt.synlig = Math.min(1, nytt.synlig + dt / 1.8);
+      const glod = mjuk(0.5, 2.5, tid) * tand;
+
+      // Handen följer fingret mjukt och svajar lite av sig själv
       rorTid += dt;
       const svaj = 0.004 * Math.sin(rorTid * 1.3) + 0.002 * Math.sin(rorTid * 3.1);
-      forraTopp = { ...topp };
       const k = Math.min(1, dt * 22);
-      topp.x += (mal.x + svaj - topp.x) * k;
-      topp.y += (mal.y + svaj * 0.5 - topp.y) * k;
+      const gx0 = grepp.x;
+      grepp.x += (mal.x + svaj - grepp.x) * k;
+      grepp.y += (mal.y + svaj * 0.5 - grepp.y) * k;
+      // Blosset reser sig mot en lätt lutning och svänger lite efter när handen rör sig
+      const malVinkel = 1.78 - klamp((grepp.x - gx0) / Math.max(dt, 1e-3), -2, 2) * 0.08;
+      vinkel += (malVinkel - vinkel) * Math.min(1, dt * 4);
+      const S = stavEnd();
+      punkt.x = S.Bx + S.ux * LANGD * brand;
+      punkt.y = S.By + S.uy * LANGD * brand;
+      if (!forraPunkt) forraPunkt = { ...punkt };
+      const forraTopp = forraPunkt;
+      const topp = { ...punkt };
+      forraPunkt = { ...punkt };
       const steg = Math.hypot(topp.x - forraTopp.x, topp.y - forraTopp.y);
       fart += (steg / Math.max(dt, 1e-3) - fart) * Math.min(1, dt * 8);
-      // Handtaget hänger efter, som en hand som håller blosset snett nedåt
-      const hx = topp.x + 0.1 + (topp.x - 0.5) * 0.15, hy = topp.y - 0.3;
-      handtag.x += (hx - handtag.x) * Math.min(1, dt * 6);
-      handtag.y += (hy - handtag.y) * Math.min(1, dt * 6);
-      const rx = handtag.x - topp.x, ry = handtag.y - topp.y, rl = Math.hypot(rx, ry) || 1;
-      handtag.x = topp.x + (rx / rl) * 0.3; handtag.y = topp.y + (ry / rl) * 0.3;
+      // Ett nytt bloss flammar upp när det tänds
+      if (tander > 0 && tander < 0.3) {
+        for (let i = 0; i < 6; i++) {
+          const a = Math.random() * Math.PI * 2, v = slump(0.2, 0.6);
+          spruta(topp.x, topp.y, Math.cos(a) * v, Math.sin(a) * v, slump(0.1, 0.3), 0);
+        }
+        if (tander < 0.05) fras(0.035, 0.5);
+      }
 
       // Nya gnistor från toppen, åt alla håll
       const antal = Math.round(slump(3, 7) * glod);
@@ -365,7 +466,11 @@ export default {
       gl.uniform1i(vu.u_spar, 0);
       gl.uniform2f(vu.u_res, duk.width, duk.height);
       gl.uniform1f(vu.u_tid, tid);
-      gl.uniform4f(vu.u_bloss, topp.x, topp.y, handtag.x, handtag.y);
+      gl.uniform4f(vu.u_bloss, S.Bx, S.By, S.Tx, S.Ty);
+      gl.uniform1f(vu.u_brand, brand);
+      gl.uniform2f(vu.u_punkt, punkt.x, punkt.y);
+      if (nytt) { const N = nyttLage(nytt.synlig); gl.uniform4f(vu.u_nytt, N.Bx, N.By, N.Tx, N.Ty); }
+      gl.uniform1f(vu.u_nyttA, nytt ? mjuk(0, 0.4, nytt.synlig) : 0);
       gl.uniform1f(vu.u_glod, glod * (0.92 + 0.08 * Math.sin(tid * 23) * Math.sin(tid * 7)));
       gl.uniform1f(vu.u_synlig, mjuk(0, 2.5, tid));
       ritaHelskarm(gl);
