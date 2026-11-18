@@ -40,24 +40,53 @@ vec3 spegel(vec2 p, float asp) {
   float mane = smoothstep(0.024, 0.02, length(md));
   c += vec3(0.85, 0.84, 0.78) * mane * 0.85;
   c += vec3(0.5, 0.52, 0.62) * exp(-dot(md, md) * 140.0) * 0.3;
-  // Granarna runt stranden speglas och pekar in mot mitten, olika höga, med luckor emellan
-  float a = atan(m.y, m.x);
-  float n = 26.0;
-  float sektor = fract(a / 6.2832 * n);
-  float id = floor(a / 6.2832 * n);
-  float finns = step(0.18, hash(vec2(id, 7.0)));
-  float hojd = (0.1 + 0.3 * pow(hash(vec2(id, 1.0)), 1.4)) * finns;
-  float spets = 1.0 - hojd;
-  float inne = r - spets;
-  vec3 gran = vec3(0.02, 0.028, 0.05);
-  if (inne > 0.0 && hojd > 0.0) {
-    float rel = inne / hojd;
-    // Grenvåningar: bredare längst ner i varje våning
-    float vaning = fract(rel * (5.0 + 3.0 * hash(vec2(id, 4.0))));
-    float bredd = rel * 0.38 * (0.75 + 0.35 * vaning) * (0.8 + 0.4 * hash(vec2(id, 3.0)));
-    bredd += (brus(vec2(inne * 90.0, id)) - 0.5) * 0.05;
-    float kant = abs(sektor - 0.5 - (hash(vec2(id, 9.0)) - 0.5) * 0.3);
-    c = mix(c, gran, smoothstep(bredd + 0.03, bredd - 0.01, kant));
+  // Träden runt stranden speglas och pekar in mot mitten: granar och lövträd om
+  // vartannat i ojämna grupper, olika höga och lite lutande. Två rader överlappar.
+  vec2 q = m / vec2(0.5, 0.5 * asp);
+  float a = atan(q.y, q.x);
+  for (int rad = 0; rad < 2; rad++) {
+    float n = rad == 0 ? 19.0 : 13.0;
+    float fas = rad == 0 ? 0.0 : 0.37;
+    float s = a / 6.2832 * n + fas;
+    float id0 = floor(s);
+    for (int k = -1; k <= 1; k++) {
+      float id = id0 + float(k) + float(rad) * 50.0;
+      if (hash(vec2(id, 7.0)) < 0.22) continue;
+      // Trädets plats och riktning, med lite slump så att avstånden blir ojämna
+      float vinkel = (floor(s) + float(k) + 0.5 + (hash(vec2(id, 2.0)) - 0.5) * 0.8 - fas) / n * 6.2832;
+      vec2 axel = vec2(cos(vinkel), sin(vinkel));
+      vec2 tvar = vec2(-axel.y, axel.x);
+      float inat = 1.0 - dot(q, axel);          // avstånd in från stranden
+      float sida = dot(q, tvar);
+      float hojd = (rad == 0 ? 0.14 : 0.24) + 0.2 * pow(hash(vec2(id, 1.0)), 1.3);
+      sida -= inat * (hash(vec2(id, 5.0)) - 0.5) * 0.35;   // lutning
+      if (inat < -0.02 || inat > hojd * 1.05) continue;
+      bool lov = hash(vec2(id, 11.0)) < 0.45;
+      vec3 farg = lov ? vec3(0.028, 0.036, 0.042) : vec3(0.017, 0.024, 0.045);
+      float tack = 0.0;
+      if (lov) {
+        // Kort stam och en bred, knölig krona av två klumpar som går ihop med grannarna
+        float stam = smoothstep(0.009, 0.004, abs(sida)) * step(inat, hojd * 0.35);
+        float kr = hojd * (0.36 + 0.1 * hash(vec2(id, 4.0)));
+        float sidled = (hash(vec2(id, 6.0)) - 0.5) * kr;
+        vec2 kc = vec2(inat - hojd * 0.58, sida - sidled * 0.4);
+        vec2 kc2 = vec2(inat - hojd * 0.42, sida + sidled + kr * 0.35);
+        float ka = atan(kc.y, kc.x), ka2 = atan(kc2.y, kc2.x);
+        float klump = kr * (0.82 + 0.26 * brus(vec2(ka * 2.2 + id, id)) + 0.12 * brus(vec2(ka * 7.0, id * 3.0)));
+        float klump2 = kr * 0.72 * (0.82 + 0.3 * brus(vec2(ka2 * 2.5 + id, id + 2.0)));
+        float krona = max(smoothstep(klump + 0.006, klump - 0.004, length(kc)),
+                          smoothstep(klump2 + 0.006, klump2 - 0.004, length(kc2)));
+        tack = max(stam, krona);
+      } else {
+        // Gran med grenvåningar, bredast längst in mot stranden
+        float rel = clamp(inat / hojd, 0.0, 1.0);
+        float vaning = fract(rel * (5.0 + 3.0 * hash(vec2(id, 4.0))));
+        float bredd = (1.0 - rel) * hojd * 0.3 * (0.7 + 0.4 * vaning) + 0.004;
+        bredd += (brus(vec2(inat * 140.0, id)) - 0.5) * 0.012;
+        tack = smoothstep(bredd + 0.006, bredd - 0.003, abs(sida)) * step(0.0, inat);
+      }
+      c = mix(c, farg, tack);
+    }
   }
   // Strandkanten längst ut, med lite dis
   c = mix(c, vec3(0.02, 0.025, 0.045), smoothstep(0.9, 1.0, r));
