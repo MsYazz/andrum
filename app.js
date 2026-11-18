@@ -139,6 +139,12 @@ const RUM = {
     rorelse: true,
     ladda: () => import('./luckor/21-langsta-natten.js'),
   },
+  22: {
+    namn: 'Maskrosbollen',
+    farg: '#f3e6c4',
+    motiv: '<path d="M12 13c.5 3-1 6 .5 9"/><circle cx="12" cy="8.5" r="5"/><path d="M12 8.5l-3.5-3M12 8.5l3.5-3M12 8.5H7M12 8.5h5M12 8.5l-3 3.2M12 8.5l3 3.2"/><path d="M19 4l2-1.5M18.5 6.5l2.3-.3"/>',
+    ladda: () => import('./luckor/22-maskrosbollen.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
