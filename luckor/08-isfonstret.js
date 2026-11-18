@@ -9,6 +9,7 @@ import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } fr
 import { brusKalla } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, rumsLjud, slinga, fingrar, stangning, brusstot } from '../lib/scen.js';
+import { skapaVind } from '../lib/vind.js';
 
 const FW = 240, FH = 480;
 
@@ -26,6 +27,11 @@ ${BRUS}
 // Utsikten genom fönstret: kvällshimmel, snöiga kullar, granar och en stuga
 vec3 utsikt(vec2 p, float suddig) {
   vec3 c = mix(vec3(0.03, 0.05, 0.12), vec3(0.10, 0.14, 0.26), smoothstep(0.2, 1.6, p.y));
+  // En månskära högt upp, med ett svagt sken runt
+  vec2 mc = vec2(0.27, 1.62);
+  float mane = smoothstep(0.052, 0.048, length(p - mc)) * smoothstep(0.042, 0.047, length(p - mc - vec2(0.022, 0.012)));
+  c += vec3(0.95, 0.92, 0.80) * mane;
+  c += vec3(0.35, 0.40, 0.55) * exp(-dot(p - mc, p - mc) * 60.0) * 0.22;
   // Kullarna med snö, svagt blåa i kvällsljuset
   float kulle = 0.42 + 0.06 * sin(p.x * 3.1 + 1.0) + 0.04 * sin(p.x * 7.3);
   if (p.y < kulle) c = mix(vec3(0.20, 0.24, 0.34), vec3(0.34, 0.38, 0.50), smoothstep(0.0, kulle, p.y));
@@ -138,15 +144,13 @@ export default {
       const a = Math.sin(x * 0.021 + fr1) * 1.6 + Math.cos(y * 0.017 + fr2) * 1.6 + Math.sin((x + y) * 0.009) * 2;
       const kanal = 0.5 + 0.5 * Math.sin((x * Math.cos(a) + y * Math.sin(a)) * 0.85 + Math.sin(y * 0.05 + x * 0.03) * 2);
       vilja[i] = (0.2 + 0.8 * Math.pow(kanal, 3)) * (0.7 + 0.3 * Math.random());
-      // Kanterna är frostade från början, tjockast nertill
+      // Från början bara en smal frostkant längs karmen och spröjsen
       const kant = Math.min(x, FW - 1 - x, y, FH - 1 - y);
-      const nedre = y > FH * 0.85 ? 4 : 0;
-      if (kant < 2 + nedre + Math.random() * 2) F[i] = 1;
-      // Mittspröjsen
-      if (Math.abs(y + 0.5 - FH * 0.5) < 1.2) F[i] = 1;
+      if (kant < 1 + Math.random() * 1.5) F[i] = 1;
+      if (Math.abs(y + 0.5 - FH * 0.5) < 1.5 + Math.random()) F[i] = 1;
     }
     // Några frön längs kanterna där isblommor börjar
-    for (let k = 0; k < 60; k++) {
+    for (let k = 0; k < 30; k++) {
       const sida = Math.floor(Math.random() * 4);
       const x = sida < 2 ? Math.floor(Math.random() * FW) : sida === 2 ? 3 : FW - 4;
       const y = sida >= 2 ? Math.floor(Math.random() * FH) : sida === 0 ? 3 : FH - 4;
@@ -174,7 +178,7 @@ export default {
       return vaxt;
     }
     const skydd = new Float32Array(N);
-    for (let k = 0; k < 600; k++) vaxa(12000);
+    for (let k = 0; k < 40; k++) vaxa(8000);
 
     // Frosten mjukas upp lite innan den ritas, så att rutnätet inte syns
     const Fm = new Float32Array(N);
@@ -238,27 +242,21 @@ export default {
     const rumF = ctx.createBiquadFilter(); rumF.type = 'lowpass'; rumF.frequency.value = 160;
     const rumG = ctx.createGain(); rumG.gain.value = 0.04;
     rumston.connect(rumF).connect(rumG).connect(ut);
-    // Vinden utanför, dämpad av glaset
-    const vind = brusKalla('rosa');
-    const vindF = ctx.createBiquadFilter(); vindF.type = 'bandpass'; vindF.frequency.value = 500; vindF.Q.value = 0.6;
-    const vindG = ctx.createGain(); vindG.gain.value = 0.015;
-    const vindLfo = ctx.createOscillator(); vindLfo.frequency.value = 0.07;
-    const vindDjup = ctx.createGain(); vindDjup.gain.value = 0.012;
-    vindLfo.connect(vindDjup).connect(vindG.gain);
-    vind.connect(vindF).connect(vindG).connect(ut);
-    vindLfo.start();
+    // Vinden som viner utanför fönstret
+    const vind = skapaVind(ctx, ut, { styrka: 1 });
     // Värmen från fingret: ett mjukt sus
     const andning = brusKalla('rosa');
     const andF = ctx.createBiquadFilter(); andF.type = 'bandpass'; andF.frequency.value = 900; andF.Q.value = 0.5;
     const andG = ctx.createGain(); andG.gain.value = 0;
     andning.connect(andF).connect(andG).connect(ut);
-    l.kallor.push(rumston, vind, vindLfo, andning);
+    l.kallor.push(rumston, andning, ...vind.kallor);
 
     // ---------- Ritslinga ----------
     let knasterTid = 1;
     const stoppa = slinga((tid, dt) => {
       for (let i = 0; i < N; i++) if (skydd[i] > 0) skydd[i] -= dt;
-      const vaxt = vaxa(Math.floor(15000 * Math.min(2, dt * 60)));
+      // Frosten växer långsamt, så att man kan se den kräla fram under flera minuter
+      const vaxt = vaxa(Math.floor(2200 * Math.min(2, dt * 60)));
       const smalte = smalt(dt);
       finger.varme += ((finger.nere ? 1 : 0) - finger.varme) * Math.min(1, dt * 2.5);
 
@@ -269,6 +267,7 @@ export default {
         brusstot(ctx, ut, { frekvens: slump(4000, 9000), q: 2, styrka: slump(0.02, 0.06), langd: 0.0006, nar: t });
         knasterTid = slump(0.2, 1.4);
       }
+      vind.uppdatera(dt);
       andG.gain.setTargetAtTime(0.03 * finger.varme + Math.min(0.02, smalte * 0.002), t, 0.15);
 
       utjamna();

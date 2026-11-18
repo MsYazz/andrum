@@ -280,6 +280,49 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
+// Dra kalendern nedåt från toppen för att ladda om. Webbläsarens eget drag är avstängt,
+// och i hemskärmsläget på iPhone finns det inte alls, så det byggs här.
+const dragOm = document.createElement('div');
+dragOm.id = 'dragOm';
+dragOm.setAttribute('aria-hidden', 'true');
+dragOm.innerHTML = '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" class="spar"/><circle cx="20" cy="20" r="14" class="fyll"/></svg>';
+document.body.append(dragOm);
+const DRAG_TROSKEL = 90;
+let dragStart = null;
+let dragAvst = 0;
+function visaDrag() {
+  const p = Math.min(1, dragAvst / DRAG_TROSKEL);
+  dragOm.style.opacity = String(p);
+  dragOm.style.transform = `translate(-50%, ${Math.min(dragAvst, 130) * 0.45}px)`;
+  dragOm.style.setProperty('--p', String(p));
+  kalender.style.transform = dragAvst ? `translateY(${Math.min(dragAvst, 150) * 0.35}px)` : '';
+}
+window.addEventListener('touchstart', (e) => {
+  const blockerad = stoppa || upptagen || document.querySelector('.intro') || window.scrollY > 2;
+  dragStart = blockerad ? null : e.touches[0].clientY;
+  dragAvst = 0;
+  if (dragStart !== null) kalender.style.transition = 'none';
+}, { passive: true });
+window.addEventListener('touchmove', (e) => {
+  if (dragStart === null) return;
+  dragAvst = window.scrollY > 2 ? 0 : Math.max(0, e.touches[0].clientY - dragStart);
+  visaDrag();
+}, { passive: true });
+const slutaDra = () => {
+  if (dragStart === null) return;
+  dragStart = null;
+  kalender.style.transition = '';
+  if (dragAvst >= DRAG_TROSKEL) {
+    dragOm.classList.add('laddar');
+    setTimeout(() => location.reload(), 350);
+  } else {
+    dragAvst = 0;
+    visaDrag();
+  }
+};
+window.addEventListener('touchend', slutaDra);
+window.addEventListener('touchcancel', slutaDra);
+
 // Laddas sidan om inne i ett rum börjar vi i kalendern igen
 if (history.state?.andrum === 'rum') history.replaceState(null, '');
 ritaKalender();
