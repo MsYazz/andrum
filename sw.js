@@ -1,6 +1,6 @@
 // Nätet först, så att nya rum dyker upp direkt. Allt som hämtas sparas också,
 // så att rum man redan har besökt fungerar när telefonen är offline.
-const CACHE = 'andrum-v4';
+const CACHE = 'andrum-v5';
 const SKAL = [
   './',
   './index.html',
@@ -25,8 +25,10 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
+  // no-cache: fråga alltid servern om filen har ändrats, så att nya och gamla filer
+  // aldrig blandas efter en uppdatering
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then((svar) => {
         if (svar.ok) {
           const kopia = svar.clone();

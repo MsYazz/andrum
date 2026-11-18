@@ -30,7 +30,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 13 | **Luciaskenet** | Ett stearinljus i mörkret. Lågan lutar sig undan för fingret som för ett drag och svajar tillbaka. Stearinet rinner | Låga, fjädrande lutning | Klar |
 | 14 | **Eldflugorna** | Eldflugor samlas långsamt runt fingret och börjar blinka i takt, tills svärmen pulserar tillsammans | Svärm, Kuramoto-synkning | Klar |
 | 15 | **Sidenduken** | Skiftande siden i veck som böljar i vinden. Hon kan ta tag och dra i det | Verlet-tyg i 3D | Klar |
-| 16 | **Tuschpenseln** | Penselstreck på rispapper. Bläcket flyter ut i fibrerna | Diffusion i papper | |
+| 16 | **Tuschpenseln** | Penseldrag på rispapper: långsamt blir brett, fort blir torrt och strimmigt. Bläcket flyter ut i fibrerna | Vatten och pigment i fibrer | Klar |
 | 17 | **Klangskålen** | För fingret runt kanten och tonen växer | Modalsyntes | |
 | 18 | **Pendelvågen** | Femton pendlar glider in och ur mönster | Pendelfysik | |
 | 19 | **Vindspelet** | Lutar telefonen och små rör klingar mjukt | Fysikalisk modellering av ljud | |

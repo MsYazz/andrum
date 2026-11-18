@@ -2,7 +2,7 @@ import { ljud, vaknaLjud, duns } from './lib/ljud.js';
 import { knack } from './lib/haptik.js';
 import { begarRorelse } from './lib/rorelse.js';
 import { visaIntro } from './lib/intro.js';
-import { nyMilstolpe, visaKonfetti } from './lib/konfetti.js';
+import { nyMilstolpe, visaKonfetti, tonaUtKonfetti } from './lib/konfetti.js';
 
 // Rummen som finns. Färgen är ljuset som strömmar ut genom dörren.
 // Motivet präglas i den övre dörrspegeln första gången dörren öppnas (SVG, 24x24).
@@ -100,6 +100,12 @@ const RUM = {
     motiv: '<path d="M4 4h16"/><path d="M6 4c0 5-2 8 0 12s4 4 6 4 4-2 5-6-1-7 1-10"/>',
     ladda: () => import('./luckor/15-sidenduken.js'),
   },
+  16: {
+    namn: 'Tuschpenseln',
+    farg: '#efe6d2',
+    motiv: '<path d="M17 3l3 3-9 9-3-3z"/><path d="M8 12c-2 0-4 2-4 5 0 1-1 2-2 2 3 1 7 0 8-3z" class="fylld"/>',
+    ladda: () => import('./luckor/16-tuschpenseln.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
@@ -178,6 +184,7 @@ async function kliverIn(dorr) {
   // Ljud och vibration måste startas direkt i tryckningen (krav i iOS).
   ljud();
   knack();
+  tonaUtKonfetti();
   if (RUM[n].rorelse) begarRorelse();
   const laddning = RUM[n].ladda();
   oppenDorr = dorr;
