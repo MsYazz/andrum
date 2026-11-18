@@ -169,39 +169,50 @@ export default {
       ordna(dt);
     }
 
-    // Tyget ska inte kunna trassla in sig. Varje punkt ska ligga under punkten ovanför
-    // och till höger om punkten till vänster, och duken drar sig mjukt tillbaka mot sin
-    // form. Medan hon håller i duken får den vika sig fritt, men så fort hon släpper
-    // vecklar den mjukt ut sig igen. Ett veck kan alltså aldrig bli ett trassel.
-    const MIN_Y = steg * 0.35, MIN_X = steg * 0.3, MAX_Z = 0.14;
+    // Draperimodellen. Varje punkt får bara röra sig en bit runt sin plats i bilden,
+    // men fritt i djupled. Punkterna ligger alltid i ordning: under punkten ovanför och
+    // till höger om punkten till vänster. Då är tyget alltid en sammanhängande yta som
+    // kan bölja och veckas men aldrig vika sig in i sig själv eller trassla sig.
+    const MIN_Y = steg * 0.55, MIN_X = steg * 0.4, MAX_Z = 0.14;
+    const RUM_X = 0.16, RUM_UPP = 0.1, RUM_NER = 0.08;
     let slapptTid = 99;
     function ordna(dt) {
       slapptTid = grepp >= 0 ? 0 : slapptTid + dt;
-      // Hur hårt reglerna gäller: svagt medan hon håller, sedan allt starkare
-      const k0 = grepp >= 0 ? 0.01 : Math.min(0.25, 0.03 + slapptTid * 0.3);
-      const hem = grepp >= 0 ? 0 : Math.min(1, slapptTid * 0.5);
+      const m = (slapptTid < 6 ? 0.003 : 0.0012);
+      for (let j = 1; j < NY; j++) for (let i = 0; i < NX; i++) {
+        const k = j * NX + i;
+        if (fast[k]) continue;
+        const k3 = k * 3;
+        // Formminne: tyget söker sig mjukt tillbaka till hur det hänger
+        if (k !== grepp) {
+          P[k3] += (vila[k3] - P[k3]) * m;
+          P[k3 + 1] += (vila[k3 + 1] - P[k3 + 1]) * m * 0.5;
+          P[k3 + 2] += (vila[k3 + 2] - P[k3 + 2]) * m;
+        }
+        // Inom sitt område runt viloläget
+        P[k3] = Math.max(vila[k3] - RUM_X, Math.min(vila[k3] + RUM_X, P[k3]));
+        P[k3 + 1] = Math.max(vila[k3 + 1] - RUM_NER, Math.min(vila[k3 + 1] + RUM_UPP, P[k3 + 1]));
+        P[k3 + 2] = Math.max(-MAX_Z, Math.min(MAX_Z, P[k3 + 2]));
+        // Alltid under punkten ovanför
+        const ovan = (k - NX) * 3;
+        if (P[k3 + 1] > P[ovan + 1] - MIN_Y) P[k3 + 1] = P[ovan + 1] - MIN_Y;
+        // Alltid till höger om punkten till vänster
+        if (i > 0) {
+          const v = (k - 1) * 3;
+          if (P[k3] < P[v] + MIN_X) P[k3] = P[v] + MIN_X;
+        }
+      }
+      // Jämna ut de minsta vecken i djupled, så att sidenet faller i mjuka veck i stället
+      // för att skrynkla sig som folie
       for (let j = 1; j < NY; j++) for (let i = 0; i < NX; i++) {
         const k = j * NX + i;
         if (fast[k] || k === grepp) continue;
-        const k3 = k * 3;
-        const ovan = (k - NX) * 3;
-        const fy = P[k3 + 1] - (P[ovan + 1] - MIN_Y);
-        if (fy > 0) P[k3 + 1] -= fy * k0;
-        if (i > 0) {
-          const v = (k - 1) * 3;
-          const fx = P[v] + MIN_X - P[k3];
-          if (fx > 0) {
-            P[k3] += fx * k0 * 0.5;
-            if (k - 1 !== grepp) P[v] -= fx * k0 * 0.5;
-          }
-        }
-        // Formminne: tyget hittar alltid tillbaka till hur det hänger, hur det än vikts
-        const m = (slapptTid < 8 ? 0.004 : 0.0015) * hem;
-        P[k3] += (vila[k3] - P[k3]) * m;
-        P[k3 + 1] += (vila[k3 + 1] - P[k3 + 1]) * m * 0.5;
-        P[k3 + 2] += (vila[k3 + 2] - P[k3 + 2]) * m;
-        const z = P[k3 + 2];
-        if (Math.abs(z) > MAX_Z) P[k3 + 2] -= (z - Math.sign(z) * MAX_Z) * 0.2;
+        const z = (k) => P[k * 3 + 2];
+        let sum = z(k - NX), n = 1;
+        if (j < NY - 1) { sum += z(k + NX); n++; }
+        if (i > 0) { sum += z(k - 1); n++; }
+        if (i < NX - 1) { sum += z(k + 1); n++; }
+        P[k * 3 + 2] += (sum / n - P[k * 3 + 2]) * 0.06;
       }
     }
 
@@ -253,9 +264,18 @@ export default {
           if (d < bd) { bd = d; bast = k; }
         }
         grepp = bast;
-        greppPos[0] = wx; greppPos[1] = wy;
+        if (bast >= 0) { greppPos[0] = P[bast * 3]; greppPos[1] = P[bast * 3 + 1]; }
       },
-      drag: (x, y) => { const [wx, wy] = tillVarld(x, y); greppPos[0] = wx; greppPos[1] = wy; },
+      drag: (x, y) => {
+        const [wx, wy] = tillVarld(x, y);
+        // Fingret kan dra i tyget, men bara så långt tyget räcker. Längre bort följer
+        // det med en mjuk eftergivlighet i stället för att slita tyget över sig självt.
+        if (grepp < 0) return;
+        const k3 = grepp * 3;
+        const mjukGrans = (d, r) => r * Math.tanh(d / r);
+        greppPos[0] = vila[k3] + mjukGrans(wx - vila[k3], RUM_X * 0.9);
+        greppPos[1] = vila[k3 + 1] + mjukGrans(wy - vila[k3 + 1], wy > vila[k3 + 1] ? RUM_UPP * 0.9 : RUM_NER * 0.9);
+      },
       upp: () => { grepp = -1; },
     });
 
