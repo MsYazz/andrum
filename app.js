@@ -126,6 +126,12 @@ const RUM = {
     rorelse: true,
     ladda: () => import('./luckor/19-vindspelet.js'),
   },
+  20: {
+    namn: 'Strandkanten',
+    farg: '#9fd0d8',
+    motiv: '<path d="M3 7c3-2 5 2 9 0s6-2 9 0"/><path d="M3 11c3-2 5 2 9 0s6-2 9 0"/><path d="M6 18c1-2 3-2 4 0s3 2 4 0"/>',
+    ladda: () => import('./luckor/20-strandkanten.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';

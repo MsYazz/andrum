@@ -34,7 +34,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 17 | **Klangskålen** | Ett tryck slår an skålen, fingret runt kanten får den att sjunga. Vattnet i skålen darrar med tonen | Modalsyntes med svävningar | Klar |
 | 18 | **Pendelvågen** | Femton pendlar uppifrån glider in och ur ormar och vågor, med en ton för varje vändning. Ett tryck samlar dem | Pendelvåg med 90 sekunders cykel | Klar |
 | 19 | **Vindspelet** | Vinden får kläppen att slå mot rören. Svep ger vindbyar, lutning blåser, ett tryck slår an ett rör | Kopplade pendlar, modalsyntes, gyro | Klar |
-| 20 | **Strandkanten** | Skriver i sanden och en våg sköljer bort det. Det är meningen att det ska försvinna | Grundvattenvågor | |
+| 20 | **Strandkanten** | Skriver i den våta sanden och en våg sköljer upp och slätar ut det. Det är meningen att det ska försvinna | Höjdfält, svall med skumspets | Klar |
 | 21 | **Längsta natten** | Vintersolståndet. Drar linjer mellan stjärnor till egna stjärnbilder | Stilla parallax | |
 | 22 | **Maskrosbollen** | Blåser och fröna seglar iväg | Partiklar, mikrofon | |
 | 23 | **Degen** | Bakdag. Trycker och knådar en mjuk, varm deg. Groparna fylls långsamt igen när degen jäser | Segt, fjädrande höjdfält | |
