@@ -2,6 +2,8 @@
 
 En adventskalender med 24 dörrar. Bakom varje dörr finns ett rum att vila i: ett lugnt ljud- och bildlandskap som svarar på beröring. Inga poäng, inga krav.
 
+Alla 24 rum, principerna och vad som är klart finns i [RUM.md](RUM.md).
+
 ## Köra lokalt
 
 ```powershell
