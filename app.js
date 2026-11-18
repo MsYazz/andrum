@@ -88,6 +88,12 @@ const RUM = {
     motiv: '<path d="M12 3c1.3 1.8 2 3 2 4.2a2 2 0 0 1-4 0C10 6 10.7 4.8 12 3z" class="fylld"/><rect x="9.5" y="10" width="5" height="9" rx="0.6"/><path d="M6 21h12"/>',
     ladda: () => import('./luckor/13-luciaskenet.js'),
   },
+  14: {
+    namn: 'Eldflugorna',
+    farg: '#d4f08a',
+    motiv: '<circle cx="7" cy="8" r="1.3" class="fylld"/><circle cx="15" cy="5" r="1" class="fylld"/><circle cx="17" cy="12" r="1.5" class="fylld"/><circle cx="10" cy="14" r="1" class="fylld"/><path d="M3 21c1-3 2-5 3-6M8 21c0-3 1-4 1-5M13 21c0-2 1-4 2-5M18 21c0-2-1-3-1-4"/>',
+    ladda: () => import('./luckor/14-eldflugorna.js'),
+  },
 };
 
 const NYCKEL = 'andrum.oppnade';
