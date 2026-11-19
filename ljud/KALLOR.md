@@ -16,3 +16,4 @@ krav på att nämna upphovspersonen). De är Freesounds förhandslyssningsfiler 
 | `frost-steg.mp3` | Frostängen (7) | "Footsteps_Mountain_Boots_Frozen_Grass_Mono.wav" av Nox_Sound, https://freesound.org/people/Nox_Sound/sounds/546604/ |
 | `frost-landning.mp3` | Frostängen (7) | "Footsteps_Mountain_Boots_Grass_Mono.wav" av Nox_Sound, landningen vid 0:45, https://freesound.org/people/Nox_Sound/sounds/556042/ |
 | `tjarn-fladdermus.mp3` | Tjärnen (9) | "Bats 1.wav" av iainmccurdy, https://freesound.org/people/iainmccurdy/sounds/498406/ |
+| `snoglob-speldosa.mp3` | Snögloben (22) | "What Child is This.wav" av ZekiFoxx, https://freesound.org/people/ZekiFoxx/sounds/118165/ |

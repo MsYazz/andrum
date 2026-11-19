@@ -13,6 +13,7 @@ import { brusKalla, rum } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning, klang, brusstot } from '../lib/scen.js';
 import { lyssnaSkak } from '../lib/rorelse.js';
+import { laddaInspelning } from '../lib/inspelning.js';
 
 const FLINGOR = 480;
 const R = 0.38;              // kulans radie i skärmbredder
@@ -333,15 +334,82 @@ export default {
     const TAND = [[1, 1, 2.4], [2.0, 0.16, 1.0], [5.04, 0.07, 0.35], [9.3, 0.025, 0.12]];
     let spel = null;         // { start, varv, slag }
     let spelNiva = 0;
+    // Speldosan: en inspelning av en riktig speldosa som spelar "What Child is This".
+    // Den spelas en gång varje gång nyckeln dras upp, aldrig i loop. Diskanten är
+    // dämpad så att den inte skär. Går den inte att ladda spelas den framräknade visan.
+    const dosaTyst = ctx.createGain(); dosaTyst.gain.value = 1;
+    const dosaDiskant = ctx.createBiquadFilter(); dosaDiskant.type = 'highshelf'; dosaDiskant.frequency.value = 3000; dosaDiskant.gain.value = -8;
+    const dosaLp = ctx.createBiquadFilter(); dosaLp.type = 'lowpass'; dosaLp.frequency.value = 7000; dosaLp.Q.value = 0.6;
+    const dosaNiva = ctx.createGain(); dosaNiva.gain.value = 0;
+    dosaNiva.connect(dosaDiskant).connect(dosaLp).connect(dosaTyst).connect(ut);
+    const dosaEko = ctx.createGain(); dosaEko.gain.value = 0.3;
+    dosaTyst.connect(dosaEko).connect(eko);
+    let dosa = null, dosaKalla = null, tyst = false, dosaLage = 'laddar', vantarPaDosa = false;
+    laddaInspelning(ctx, 'ljud/snoglob-speldosa.mp3').then((b) => {
+      // Nivån efter inspelningens starkaste topp
+      let topp = 0;
+      for (let k = 0; k < b.numberOfChannels; k++) { const d = b.getChannelData(k); for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > topp) topp = v; } }
+      dosaNiva.gain.value = Math.min(4, 0.11 / Math.max(topp, 1e-4));
+      dosa = b;
+      dosaLage = 'klar';
+      if (vantarPaDosa) { vantarPaDosa = false; starta(); }
+    }, () => {
+      dosaLage = 'fel';
+      if (vantarPaDosa) { vantarPaDosa = false; starta(); }
+    });
     function dra() {
       // Nyckeln knäpper när den dras upp, och sedan börjar visan
       const t = ctx.currentTime;
       for (let i = 0; i < 5; i++) brusstot(ctx, ut, { frekvens: slump(2200, 3200), q: 3, styrka: 0.035, langd: 0.0012, nar: t + i * 0.11 });
+      // Drar hon upp nyckeln vill hon höra den, så ljudet slås på igen
+      if (tyst) satTyst(false);
+      if (spel) return;   // spelar redan: melodin fortsätter
+      // Är inspelningen inte laddad än börjar visan så fort den är det
+      if (dosaLage === 'laddar') { vantarPaDosa = true; return; }
+      starta();
+    }
+    function starta() {
+      if (spel || tyst) return;
+      const t = ctx.currentTime;
+      if (dosa) {
+        const k = ctx.createBufferSource();
+        k.buffer = dosa;
+        k.connect(dosaNiva);
+        k.start(t + 0.8);
+        dosaKalla = k;
+        spel = { inspelning: true, slut: t + 0.8 + dosa.duration };
+        k.onended = () => { if (dosaKalla === k) { dosaKalla = null; spel = null; } };
+        return;
+      }
       spel = { nasta: t + 0.8, steg: 0, total: MELODI.length * 3 * 2 };
     }
+    // Ljudknappen: stänger av och slår på speldosan
+    const knapp = document.createElement('button');
+    knapp.className = 'lucka-ui';
+    knapp.style.cssText = 'top:calc(env(safe-area-inset-top) + 8px);right:8px;width:48px;height:48px;border:0;background:none;color:rgba(255,255,255,0.35);display:grid;place-items:center;cursor:pointer;';
+    const IKON_PA = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 010 7M18 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    const IKON_AV = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    function satTyst(av) {
+      tyst = av;
+      const t = ctx.currentTime;
+      dosaTyst.gain.cancelScheduledValues(t);
+      dosaTyst.gain.setTargetAtTime(av ? 0 : 1, t, 0.15);
+      if (av) {
+        // Stoppa visan när den har tonat ut
+        const k = dosaKalla; dosaKalla = null; spel = null;
+        if (k) setTimeout(() => { try { k.stop(); } catch {} }, 700);
+      }
+      knapp.innerHTML = av ? IKON_AV : IKON_PA;
+      knapp.setAttribute('aria-label', av ? 'Slå på speldosan' : 'Stäng av speldosan');
+    }
+    knapp.addEventListener('click', () => satTyst(!tyst));
+    satTyst(false);
+    scen.append(knapp);
+    l.kallor.push({ stop: () => { try { dosaKalla && dosaKalla.stop(); } catch {} } });
     function spelaVidare() {
       if (!spel) return;
       const t = ctx.currentTime;
+      if (spel.inspelning) { if (t > spel.slut + 0.2) spel = null; return; }
       while (spel && spel.nasta < t + 0.25) {
         const kvar = 1 - spel.steg / spel.total;
         // Fjädern går ut: tempot saktar in under sista varvet
@@ -356,7 +424,7 @@ export default {
       }
     }
     // Speldosan spelar en gång av sig själv när rummet öppnas
-    setTimeout(() => { if (!spel) dra(); }, 2200);
+    setTimeout(() => { if (!spel && !tyst) dra(); }, 2200);
 
     // Vattnet som skvalpar när kulan skakas
     const vatten = brusKalla('rosa');
