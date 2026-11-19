@@ -504,7 +504,7 @@ export default {
             <div class="snore" aria-hidden="true"></div>
             <p class="till">${vivan ? 'Till Vivan' : 'Till er som provar'}</p>
             <div class="text">${(vivan ? KORT_TEXT : PROVKORT_TEXT).map((r) => `<p>${r}</p>`).join('')}</div>
-            <p class="halsning">${vivan ? 'God jul, Vivan!' : 'God jul!'}<br><span>${vivan ? 'från Ella' : 'från mamma'}</span></p>
+            <p class="halsning">${vivan ? 'God jul, Vivan!' : 'God jul!'}<br><span>${vivan ? 'från Ella' : 'från pappa'}</span></p>
           </div>
           <button class="intro-knapp">Gå in i grottan</button>
         </div>`;
