@@ -194,15 +194,11 @@ export default {
     const svF = ctx.createBiquadFilter(); svF.type = 'bandpass'; svF.frequency.value = 700; svF.Q.value = 0.5;
     const svG = ctx.createGain(); svG.gain.value = 0;
     svall.connect(svF).connect(svG).connect(ut);
-    const fras = brusKalla('korn');
-    const frF = ctx.createBiquadFilter(); frF.type = 'highpass'; frF.frequency.value = 3000;
-    const frG = ctx.createGain(); frG.gain.value = 0;
-    fras.connect(frF).connect(frG).connect(ut);
     const skrap = brusKalla('korn');
     const skF = ctx.createBiquadFilter(); skF.type = 'bandpass'; skF.frequency.value = 2300; skF.Q.value = 1.1;
     const skG = ctx.createGain(); skG.gain.value = 0;
     skrap.connect(skF).connect(skG).connect(ut);
-    l.kallor.push(branning, brLfo, svall, fras, skrap);
+    l.kallor.push(branning, brLfo, svall, skrap);
     // Havet: ett lugnt hav i bakgrunden, och en riktig våg som sköljer upp varje gång en
     // våg syns på skärmen. Går inspelningarna inte att ladda räknas ljuden fram.
     const havMatta = skapaMatta(ctx, ut, 'ljud/strand-hav.mp3', { niva: 0.02, bit: [10, 20], over: 4, hp: 80, tonhojd: 0.02, jamna: 0.3 });
@@ -276,12 +272,11 @@ export default {
       // Sanden torkar sakta
       for (let i = 0; i < N; i++) if (vata[i] > 0) vata[i] = Math.max(0, vata[i] - dt * 0.012);
 
-      // Vågens ljud: brus när den sköljer upp, fräs när den drar sig tillbaka
+      // Vågens ljud när den sköljer upp. När den drar sig tillbaka är det tyst.
       const t = ctx.currentTime;
       const fart = Math.abs(vagLage - forraLage) / Math.max(dt, 1e-3);
       svG.gain.setTargetAtTime(vagInspelad ? 0 : drar ? 0.02 * vatten : 0.09 * Math.min(1, fart * 6) * vatten, t, 0.15);
       svF.frequency.setTargetAtTime(500 + 900 * Math.min(1, fart * 5), t, 0.2);
-      frG.gain.setTargetAtTime(drar ? 0.03 * Math.min(1, fart * 8) * vatten : 0.004, t, 0.2);
       skrapFart = Number.isFinite(skrapFart) ? skrapFart * Math.exp(-dt * 5) : 0;
       skG.gain.setTargetAtTime(0.04 * skrapFart, t, 0.04);
 
