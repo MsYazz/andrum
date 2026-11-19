@@ -14,7 +14,7 @@ import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning, brusstot, bub
 import { skapaPorl } from '../lib/porl.js';
 import { skapaVind } from '../lib/vind.js';
 import { skapaMatta, spelaKorn } from '../lib/inspelning.js';
-import { tillVivan } from '../lib/mottagare.js';
+import { mottagare } from '../lib/mottagare.js';
 
 // Ställen i eldinspelningen där det knäpper till ordentligt (halvsekunder)
 const KNAPP = [0.5, 3.6, 4.6, 5.6, 6.6, 9.7, 11.2, 11.7, 17.4, 18.9];
@@ -245,6 +245,11 @@ const KORT_STIL = `
 .grottkort .text { margin-bottom: 1.3rem; }
 `;
 const KORT_NYCKEL = 'andrum.julkort';
+// Provkortet till dem som provar appen
+const PROVKORT_TEXT = [
+  'Här ligger julkortet som Vivan får på julafton, fast med andra ord.',
+  'Tack för att ni har provat alla rum och hjälpt mig att göra dem fina!',
+];
 const KORT_TEXT = [
   'Jag hoppas att din julafton blir fin och stämningsfull.',
   'Men om den ger för många intryck, så är du alltid välkommen att göra reträtt hit, in i din grotta. Här är det lugnt, och här behöver du ingenting.',
@@ -488,17 +493,18 @@ export default {
     // grottan sakta tonar fram bakom. Ett tryck på knappen lägger undan det.
     let kortVisat = false;
     try { kortVisat = localStorage.getItem(KORT_NYCKEL) === 'sett'; } catch {}
-    // Kortet är bara till Vivan
-    if (!kortVisat && tillVivan) {
+    // Kortet visas bara när länken har en mottagare
+    if (!kortVisat && mottagare) {
+      const vivan = mottagare === 'vivan';
       const kort = document.createElement('div');
       kort.className = 'lucka-ui grottkort';
       kort.innerHTML = `
         <div class="kort">
           <div class="tagg">
             <div class="snore" aria-hidden="true"></div>
-            <p class="till">Till Vivan</p>
-            <div class="text">${KORT_TEXT.map((r) => `<p>${r}</p>`).join('')}</div>
-            <p class="halsning">God jul, Vivan!<br><span>från Ella</span></p>
+            <p class="till">${vivan ? 'Till Vivan' : 'Till er som provar'}</p>
+            <div class="text">${(vivan ? KORT_TEXT : PROVKORT_TEXT).map((r) => `<p>${r}</p>`).join('')}</div>
+            <p class="halsning">${vivan ? 'God jul, Vivan!' : 'God jul!'}<br><span>${vivan ? 'från Ella' : 'från mamma'}</span></p>
           </div>
           <button class="intro-knapp">Gå in i grottan</button>
         </div>`;
