@@ -277,6 +277,10 @@ async function kliverIn(dorr) {
   setTimeout(() => duk.classList.add('ritad'), 6000);
   scen.hidden = false;
   document.body.classList.add('i-scen');
+  // När kalendern har tonats bort helt rullar sidan till toppen. På iPhone (iOS 26) kan
+  // annars det fasta lagret med rummet hamna förskjutet uppåt lika mycket som kalendern
+  // var nedrullad, med ett tomrum längst ner och tillbakapilen utanför skärmen.
+  setTimeout(() => { if (oppenDorr === dorr && !scen.hidden) rullaTill(0); }, lugn ? 0 : 900);
 
   const mod = await laddning;
   await vanta(450);
@@ -307,10 +311,11 @@ async function kliverUt() {
   try { vaka?.release(); } catch {}
   vaka = null;
 
-  // Tillbaka ut genom dörren, som sedan glider igen till glänt.
+  // Tillbaka ut genom dörren, som sedan glider igen till glänt. Rullningen återställs
+  // först, så att hon står vid samma dörr när kalendern zoomar ut.
+  rullaTill(sparadScroll);
   kalender.style.transform = '';
   kalender.classList.remove('kliver');
-  rullaTill(sparadScroll);
   await vanta(900);
   if (oppenDorr) {
     oppenDorr.classList.remove('oppnas');
