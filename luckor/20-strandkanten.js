@@ -291,16 +291,17 @@ export default {
 
     // ---------- Fingret och pinnen ----------
     // En krokig kvist svävar en bit över sanden. Ett diskret fingeravtryck visar var man
-    // håller i den, strax ovanför den lilla sidokvisten. Rör hon vid skärmen glider
-    // kvisten in under fingret och sänks ner, och det är spetsen, en bit framför
-    // fingret, som ristar i sanden. När hon släpper lyfter kvisten och svävar kvar.
+    // håller i den, strax ovanför den lilla sidokvisten. Tar hon där, eller på fri sand,
+    // glider kvisten in under fingret och sänks ner, och det är spetsen, en bit framför
+    // fingret, som ristar i sanden. Tar hon på kvisten någon annanstans lyfter hon den
+    // i stället och kan flytta den. När hon släpper svävar kvisten kvar.
     // Kvistens form: vinklar och längder för varje del, från spetsen bakåt mot handen
     const FORM = [[0, 0.12], [0.2, 0.15], [-0.14, 0.14], [0.1, 0.13]];
     const GREPP = 0.2;                // från spetsen till fingret, längs kvisten
     const BAS_VINKEL = Math.atan2(-0.89, 0.45);
     const asp = () => duk.clientHeight / duk.clientWidth;
     // Greppets läge (där fingret håller), och var den ska vara
-    const pinne = { x: 0.6, y: 0.3 * asp(), mx: 0.6, my: 0.3 * asp(), nere: false, lyft: 1, luta: 0, avtryck: 1, greppat: false };
+    const pinne = { x: 0.6, y: 0.3 * asp(), mx: 0.6, my: 0.3 * asp(), nere: false, lage: 'rista', ox: 0, oy: 0, lyft: 1, luta: 0, avtryck: 1 };
     const pp = new Float32Array(10), kvistData = new Float32Array(4), avtryckData = new Float32Array(4);
     let forra = null;
     let skrapFart = 0;
@@ -352,8 +353,29 @@ export default {
       forra = [gx, gy];
     }
     const fingerTill = (x, y) => { pinne.mx = x / duk.clientWidth; pinne.my = (duk.clientHeight - y) / duk.clientWidth; };
+    // Hur nära fingret är kvisten, utom vid greppet
+    function avstandTillKvist(fx, fy) {
+      pinnPunkter();
+      const str = (ax, ay, bx, by) => {
+        const vx = bx - ax, vy = by - ay;
+        const t = Math.max(0, Math.min(1, ((fx - ax) * vx + (fy - ay) * vy) / (vx * vx + vy * vy)));
+        return Math.hypot(fx - ax - vx * t, fy - ay - vy * t);
+      };
+      let d = str(kvistData[0], kvistData[1], kvistData[2], kvistData[3]);
+      for (let i = 0; i < 4; i++) d = Math.min(d, str(pp[i * 2], pp[i * 2 + 1], pp[i * 2 + 2], pp[i * 2 + 3]));
+      return d;
+    }
     fingrar(duk, {
-      ner: (x, y) => { fingerTill(x, y); pinne.nere = true; pinne.greppat = true; forra = null; },
+      ner: (x, y) => {
+        fingerTill(x, y);
+        pinne.nere = true; forra = null;
+        const vidGrepp = Math.hypot(pinne.mx - pinne.x, pinne.my - pinne.y) < 0.045;
+        if (!vidGrepp && avstandTillKvist(pinne.mx, pinne.my) < 0.03) {
+          // Tar hon på kvisten någon annanstans lyfter hon den och flyttar den
+          pinne.lage = 'flytta';
+          pinne.ox = pinne.x - pinne.mx; pinne.oy = pinne.y - pinne.my;
+        } else pinne.lage = 'rista';
+      },
       drag: (x, y) => { fingerTill(x, y); },
       upp: () => { pinne.nere = false; forra = null; },
     });
@@ -420,15 +442,23 @@ export default {
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
       // Kvisten glider snabbt in under fingret, lutar lite efter i sidled och sänks
       // ner till sanden. Den ristar först när den ligger rätt i handen.
+      const rista = pinne.nere && pinne.lage === 'rista';
       if (pinne.nere) {
         const fx = pinne.x;
         const k = Math.min(1, dt * 22);
-        pinne.x += (pinne.mx - pinne.x) * k; pinne.y += (pinne.my - pinne.y) * k;
+        // Ristar hon hamnar greppet under fingret. Flyttar hon kvisten följer den fingret
+        // med samma avstånd som där hon tog i den.
+        const mx = rista ? pinne.mx : pinne.mx + pinne.ox, my = rista ? pinne.my : pinne.my + pinne.oy;
+        pinne.x += (Math.max(0.03, Math.min(0.97, mx)) - pinne.x) * k;
+        pinne.y += (Math.max(0.03, Math.min(asp() - 0.03, my)) - pinne.y) * k;
         pinne.luta += (Math.max(-0.18, Math.min(0.18, (pinne.x - fx) / Math.max(dt, 1e-3) * 0.12)) - pinne.luta) * Math.min(1, dt * 8);
       } else pinne.luta *= Math.exp(-dt * 3);
-      pinne.lyft += ((pinne.nere ? 0 : 1) - pinne.lyft) * Math.min(1, dt * (pinne.nere ? 12 : 5));
-      if (pinne.nere && iHanden()) ristaTill(); else forra = null;
-      if (pinne.greppat) pinne.avtryck = Math.max(0, pinne.avtryck - dt / 1.2);
+      // Kvisten sänks bara när den ristar. Lyfter hon den för att flytta den höjs den lite extra.
+      const malLyft = rista ? 0 : pinne.nere ? 1.3 : 1;
+      pinne.lyft += (malLyft - pinne.lyft) * Math.min(1, dt * (rista ? 12 : 5));
+      if (rista && iHanden()) ristaTill(); else forra = null;
+      // Avtrycket syns alltid i vila och döljs bara medan fingret håller i greppet
+      pinne.avtryck += ((rista ? 0 : 1) - pinne.avtryck) * Math.min(1, dt * 3);
       pinnPunkter();
       avtryckData[3] = pinne.avtryck;
       gl.uniform2fv(u.u_pp, pp);
