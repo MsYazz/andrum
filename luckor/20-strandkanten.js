@@ -41,7 +41,7 @@ float strDist(vec2 p, vec2 a, vec2 b, out float h, out float sida) {
 }
 // Pinnen är smal vid spetsen och grövre bakåt, och lite knölig
 float pinnRadie(float s) {
-  return mix(0.004, 0.018, smoothstep(0.0, 1.0, s)) * (1.0 + 0.1 * sin(s * 37.0) + 0.06 * sin(s * 97.0));
+  return mix(0.0032, 0.0095, smoothstep(0.0, 0.9, s)) * (1.0 + 0.12 * sin(s * 47.0) + 0.08 * sin(s * 113.0));
 }
 
 float framkant(float x, float vag, float fro) {
@@ -136,7 +136,7 @@ void main() {
     float skugga = 0.0;
     for (int i = 0; i < 4; i++) {
       float h0 = float(i) / 4.0, h1 = float(i + 1) / 4.0;
-      vec2 a = u_pp[i] + sDir * 0.09 * h0 * h0, b = u_pp[i + 1] + sDir * 0.09 * h1 * h1;
+      vec2 a = u_pp[i] + sDir * 0.07 * h0 * h0, b = u_pp[i + 1] + sDir * 0.07 * h1 * h1;
       float hh, sd;
       float d = strDist(p, a, b, hh, sd);
       float s0 = (float(i) + hh) / 4.0;
@@ -158,7 +158,7 @@ void main() {
     {
       float hh, sd;
       float d = strDist(p, u_kvist.xy, u_kvist.zw, hh, sd);
-      float r = mix(0.0065, 0.0032, hh);
+      float r = mix(0.0042, 0.0022, hh);
       if (d - r < bast) { bast = d - r; bs = 0.5 + hh * 0.1; bsida = sd / r; br = r; kvist = 1.0 - hh; }
     }
     float tack = smoothstep(px * 1.2, -px * 0.6, bast);
@@ -167,8 +167,7 @@ void main() {
       vec3 nn = normalize(vec3(-tv * 0.9, tv * 0.4, sqrt(max(0.0, 1.0 - tv * tv)) + 0.1));
       float lp = max(dot(nn, L), 0.0);
       // Ådring längs pinnen, några mörka kvistfästen och en sandig spets
-      // Ådringen löper längs pinnen, med små ojämnheter
-      float adr = 0.86 + 0.14 * sin(tv * 8.0 + fbm(vec2(bs * 14.0, tv * 1.5)) * 6.0) * (0.7 + 0.3 * brus(vec2(bs * 90.0, tv * 3.0)));
+      float adr = 0.86 + 0.14 * sin(bs * 520.0 + tv * 2.5 + fbm(vec2(bs * 30.0, tv * 2.0)) * 4.0);
       vec3 tra = vec3(0.64, 0.58, 0.49) * adr;
       tra = mix(tra, vec3(0.33, 0.27, 0.21), smoothstep(0.03, 0.0, abs(bs - 0.36)) * smoothstep(0.9, 0.2, abs(tv)) * 0.8);
       tra = mix(tra, vec3(0.30, 0.25, 0.19), smoothstep(0.025, 0.0, abs(bs - 0.71)) * smoothstep(0.8, 0.1, abs(tv)) * 0.7);
@@ -280,7 +279,7 @@ export default {
     // Hon håller i en krokig pinne. Fingret ligger på pinnen en bit bakom spetsen, och
     // det är spetsen som ristar i sanden, så att fingret inte skymmer det hon skriver.
     // Pinnens form: vinklar och längder för varje del, från spetsen bakåt mot handen
-    const FORM = [[0, 0.14], [0.3, 0.2], [-0.26, 0.22], [0.18, 0.32]];
+    const FORM = [[0, 0.12], [0.2, 0.15], [-0.14, 0.14], [0.1, 0.13]];
     const GREPP = 0.1;                 // från spetsen till fingret, längs pinnen
     const BAS_VINKEL = Math.atan2(-0.89, 0.45);
     const pinne = { x: 0.5, y: 1, syns: 0, mal: 0, luta: 0 };
@@ -332,7 +331,7 @@ export default {
           // Den avbrutna sidokvisten sitter vid andra böjen
           const kv = v - 0.9;
           kvistData[0] = x; kvistData[1] = y;
-          kvistData[2] = x + Math.cos(kv) * 0.065; kvistData[3] = y + Math.sin(kv) * 0.065;
+          kvistData[2] = x + Math.cos(kv) * 0.04; kvistData[3] = y + Math.sin(kv) * 0.04;
         }
       });
     }
