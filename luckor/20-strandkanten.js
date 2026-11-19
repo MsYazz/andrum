@@ -25,7 +25,24 @@ uniform vec2 u_rut;
 uniform vec3 u_vag;         // framkantens läge (0 uppe, 1 nere), frö, hur mycket vatten som är kvar
 uniform float u_tid;
 uniform float u_synlig;
+uniform vec2 u_pp[5];       // pinnen: från spetsen och bakåt mot handen
+uniform vec4 u_kvist;       // en liten avbruten sidokvist: från, till
+uniform float u_pa;         // hur synlig pinnen är
 ${BRUS}
+
+// Avstånd till en sträcka, och var längs sträckan närmaste punkten ligger
+float strDist(vec2 p, vec2 a, vec2 b, out float h, out float sida) {
+  vec2 ab = b - a, ap = p - a;
+  h = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+  vec2 d = ap - ab * h;
+  vec2 t = normalize(ab);
+  sida = dot(d, vec2(-t.y, t.x));
+  return length(d);
+}
+// Pinnen är smal vid spetsen och grövre bakåt, och lite knölig
+float pinnRadie(float s) {
+  return mix(0.004, 0.018, smoothstep(0.0, 1.0, s)) * (1.0 + 0.1 * sin(s * 37.0) + 0.06 * sin(s * 97.0));
+}
 
 float framkant(float x, float vag, float fro) {
   return vag + 0.018 * sin(x * 7.0 + fro) + 0.012 * sin(x * 15.0 + fro * 1.7) + 0.007 * sin(x * 31.0 + fro * 2.3);
@@ -111,6 +128,57 @@ void main() {
     c = hav;
   }
 
+  // ---- Pinnen hon skriver med ----
+  if (u_pa > 0.0) {
+    float px = 1.0 / u_res.x;
+    // Skuggan: pinnen lyfter från sanden bakåt, och skuggan hamnar snett nedåt höger
+    vec2 sDir = vec2(0.5, -0.55) / 0.65;
+    float skugga = 0.0;
+    for (int i = 0; i < 4; i++) {
+      float h0 = float(i) / 4.0, h1 = float(i + 1) / 4.0;
+      vec2 a = u_pp[i] + sDir * 0.09 * h0 * h0, b = u_pp[i + 1] + sDir * 0.09 * h1 * h1;
+      float hh, sd;
+      float d = strDist(p, a, b, hh, sd);
+      float s0 = (float(i) + hh) / 4.0;
+      float r = pinnRadie(s0);
+      float sudd = 0.002 + 0.02 * s0;
+      skugga = max(skugga, smoothstep(r + sudd, r - sudd * 0.5, d) * (0.42 - 0.22 * s0));
+    }
+    c *= 1.0 - skugga * u_pa;
+
+    // Själva pinnen: solblekt drivved
+    float bast = 1e9, bs = 0.0, bsida = 0.0, br = 1.0, kvist = 0.0;
+    for (int i = 0; i < 4; i++) {
+      float hh, sd;
+      float d = strDist(p, u_pp[i], u_pp[i + 1], hh, sd);
+      float s0 = (float(i) + hh) / 4.0;
+      float r = pinnRadie(s0);
+      if (d - r < bast) { bast = d - r; bs = s0; bsida = sd / r; br = r; kvist = 0.0; }
+    }
+    {
+      float hh, sd;
+      float d = strDist(p, u_kvist.xy, u_kvist.zw, hh, sd);
+      float r = mix(0.0065, 0.0032, hh);
+      if (d - r < bast) { bast = d - r; bs = 0.5 + hh * 0.1; bsida = sd / r; br = r; kvist = 1.0 - hh; }
+    }
+    float tack = smoothstep(px * 1.2, -px * 0.6, bast);
+    if (tack > 0.0) {
+      float tv = clamp(bsida, -1.0, 1.0);
+      vec3 nn = normalize(vec3(-tv * 0.9, tv * 0.4, sqrt(max(0.0, 1.0 - tv * tv)) + 0.1));
+      float lp = max(dot(nn, L), 0.0);
+      // Ådring längs pinnen, några mörka kvistfästen och en sandig spets
+      // Ådringen löper längs pinnen, med små ojämnheter
+      float adr = 0.86 + 0.14 * sin(tv * 8.0 + fbm(vec2(bs * 14.0, tv * 1.5)) * 6.0) * (0.7 + 0.3 * brus(vec2(bs * 90.0, tv * 3.0)));
+      vec3 tra = vec3(0.64, 0.58, 0.49) * adr;
+      tra = mix(tra, vec3(0.33, 0.27, 0.21), smoothstep(0.03, 0.0, abs(bs - 0.36)) * smoothstep(0.9, 0.2, abs(tv)) * 0.8);
+      tra = mix(tra, vec3(0.30, 0.25, 0.19), smoothstep(0.025, 0.0, abs(bs - 0.71)) * smoothstep(0.8, 0.1, abs(tv)) * 0.7);
+      tra = mix(tra, vec3(0.78, 0.71, 0.57), smoothstep(0.06, 0.0, bs) * (1.0 - kvist));
+      tra *= 0.45 + 0.75 * lp;
+      tra += vec3(1.0, 0.97, 0.9) * pow(max(dot(reflect(-L, nn), vec3(0.0, 0.0, 1.0)), 0.0), 12.0) * 0.12;
+      c = mix(c, tra, tack * u_pa);
+    }
+  }
+
   c *= 1.0 - 0.25 * pow(length(uv - 0.5) * 1.3, 2.5);
   c *= u_synlig;
   frag = vec4(dither(c, gl_FragCoord.xy, u_tid), 1.0);
@@ -123,7 +191,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_sand', 'u_rut', 'u_vag', 'u_tid', 'u_synlig']);
+    const u = platser(gl, prog, ['u_res', 'u_sand', 'u_rut', 'u_vag', 'u_tid', 'u_synlig', 'u_pp', 'u_kvist', 'u_pa']);
 
     // ---------- Sanden ----------
     const N = SW * SH;
@@ -208,24 +276,66 @@ export default {
     havMatta.klar.then(() => { havInspelat = true; brG.gain.cancelScheduledValues(ctx.currentTime); brG.gain.setTargetAtTime(0, ctx.currentTime, 1); brDjup.gain.value = 0; }, () => {});
     vagBank.klar.then(() => { vagInspelad = true; }, () => {});
 
-    // ---------- Fingret ----------
+    // ---------- Fingret och pinnen ----------
+    // Hon håller i en krokig pinne. Fingret ligger på pinnen en bit bakom spetsen, och
+    // det är spetsen som ristar i sanden, så att fingret inte skymmer det hon skriver.
+    // Pinnens form: vinklar och längder för varje del, från spetsen bakåt mot handen
+    const FORM = [[0, 0.14], [0.3, 0.2], [-0.26, 0.22], [0.18, 0.32]];
+    const GREPP = 0.1;                 // från spetsen till fingret, längs pinnen
+    const BAS_VINKEL = Math.atan2(-0.89, 0.45);
+    const pinne = { x: 0.5, y: 1, syns: 0, mal: 0, luta: 0 };
+    const pp = new Float32Array(10), kvistData = new Float32Array(4);
     let forra = null;
     let skrapFart = 0;
-    const tillRut = (x, y) => [(x / duk.clientWidth) * SW, (y / duk.clientHeight) * SH];
+    const asp = () => duk.clientHeight / duk.clientWidth;
+    // Spetsen i sandens rutnät
+    function spetsRut() {
+      const vinkel = BAS_VINKEL + pinne.luta;
+      const tx = pinne.x - Math.cos(vinkel) * GREPP, ty = pinne.y - Math.sin(vinkel) * GREPP;
+      return [Math.max(0, Math.min(1, tx)) * SW, ((asp() - ty) / asp()) * SH];
+    }
+    function flytta(x, y) {
+      const nx = x / duk.clientWidth, ny = (duk.clientHeight - y) / duk.clientWidth;
+      pinne.luta += ((Math.max(-1, Math.min(1, (nx - pinne.x) * 30)) * 0.18) - pinne.luta) * 0.3;
+      pinne.x = nx; pinne.y = ny;
+    }
     fingrar(duk, {
-      ner: (x, y) => { const [gx, gy] = tillRut(x, y); forra = [gx, gy]; grav(gx, gy); },
+      ner: (x, y) => {
+        flytta(x, y);
+        pinne.luta = 0;
+        pinne.mal = 1;
+        const [gx, gy] = spetsRut(); forra = [gx, gy]; grav(gx, gy);
+      },
       drag: (x, y) => {
-        const [gx, gy] = tillRut(x, y);
+        flytta(x, y);
+        const [gx, gy] = spetsRut();
         if (forra) {
           const d = Math.hypot(gx - forra[0], gy - forra[1]);
           const n = Math.ceil(d / 0.6);
-          for (let s = 1; s <= n; s++) grav(forra[0] + (gx - forra[0]) * s / n, forra[1] + (gy - forra[1]) * s / n);
+          for (let k = 1; k <= n; k++) grav(forra[0] + (gx - forra[0]) * k / n, forra[1] + (gy - forra[1]) * k / n);
           skrapFart = Math.min(1, skrapFart + d * 0.04);
         }
         forra = [gx, gy];
       },
-      upp: () => { forra = null; },
+      upp: () => { forra = null; pinne.mal = 0; },
     });
+    function pinnPunkter() {
+      const vinkel = BAS_VINKEL + pinne.luta;
+      let x = pinne.x - Math.cos(vinkel) * GREPP, y = pinne.y - Math.sin(vinkel) * GREPP;
+      pp[0] = x; pp[1] = y;
+      let v = vinkel;
+      FORM.forEach(([dv, l], i) => {
+        v += dv;
+        x += Math.cos(v) * l; y += Math.sin(v) * l;
+        pp[(i + 1) * 2] = x; pp[(i + 1) * 2 + 1] = y;
+        if (i === 1) {
+          // Den avbrutna sidokvisten sitter vid andra böjen
+          const kv = v - 0.9;
+          kvistData[0] = x; kvistData[1] = y;
+          kvistData[2] = x + Math.cos(kv) * 0.065; kvistData[3] = y + Math.sin(kv) * 0.065;
+        }
+      });
+    }
 
     const tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -287,6 +397,12 @@ export default {
       gl.uniform3f(u.u_vag, vagLage, vag.fro, vatten);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
+      pinne.syns += (pinne.mal - pinne.syns) * Math.min(1, dt * (pinne.mal ? 14 : 7));
+      if (!forra) pinne.luta *= Math.exp(-dt * 4);
+      pinnPunkter();
+      gl.uniform2fv(u.u_pp, pp);
+      gl.uniform4fv(u.u_kvist, kvistData);
+      gl.uniform1f(u.u_pa, pinne.syns);
       ritaHelskarm(gl);
     });
 
