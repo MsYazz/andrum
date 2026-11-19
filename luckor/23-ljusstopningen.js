@@ -1,10 +1,13 @@
 // Lucka 23: Ljusstöpningen
 // Dan före dopparedan, i köket på kvällen. På vedspisen står en emaljerad kastrull med
-// smält stearin, och ovanför hänger en bomullsveke från en pinne. Hon drar veken ner i
-// stearinet och släpper, så lyfts den sakta upp igen. Varje doppning lägger ett nytt
-// lager, och ljuset växer. Nydoppat är stearinet varmt, blankt och gulaktigt, och det
-// svalnar till matt vitt. Doppar hon medan det fortfarande är varmt fastnar mindre, så
-// det lönar sig att vänta lite mellan doppen. Det kan aldrig bli fel, bara långsammare.
+// smält stearin, och ovanför hänger en bomullsveke från en pinne. Så fort hon rör vid
+// skärmen tar hon tag i pinnen, och sedan styr hon hela doppet själv, även i sidled.
+// Varje dopp lägger ett tunt, varmt lager som rinner nedåt medan det svalnar och
+// stelnar längre ner. Ljuset blir därför smalt upptill, avsmalnar långsamt och får
+// knölar och en droppspets, som riktiga hemstöpta ljus. Nydoppat är stearinet blankt
+// och gulaktigt, och det svalnar till matt vitt. Doppar hon medan det fortfarande är
+// varmt smälter det nya lagret bort, så det lönar sig att vänta lite mellan doppen.
+// Det kan aldrig bli fel, bara långsammare.
 //
 // När ljuset är färdigt tänds det och ställs i fönstret, och en ny veke hänger där.
 // Ljusen hon har gjort står kvar i fönstret och lyser upp köket nästa gång också.
@@ -18,7 +21,7 @@ const N = 96;                 // punkter längs ljuset
 const LANGD = 0.42;           // ljusets längd, i skärmbredder
 const VEKE = 0.0016;          // vekens tjocklek
 const LAGER = 0.0017;         // ett svalt dopp
-const KLAR = 0.03;            // ljusets färdiga radie
+const KLAR = 0.025;           // ljusets färdiga radie, i snitt
 const KYL = 2.6;              // sekunder för stearinet att svalna
 const YV = 0.6;               // stearinets yta
 const SIMS = 1.02;            // fönsterbänken
@@ -31,9 +34,10 @@ out vec4 frag;
 uniform vec2 u_res;
 uniform float u_tid;
 uniform float u_synlig;
-uniform sampler2D u_prof;   // r: radie, g: värme
+uniform sampler2D u_prof;   // r: radie åt vänster, g: radie åt höger, b: värme
 uniform vec4 u_ljus;        // x, överkant, längd, vinkel
 uniform vec3 u_spets;       // stelnad spets, droppens radie, droppens värme
+uniform vec2 u_snitt;       // där ljuset går genom ytan: x, radie (0 om det inte är nere)
 uniform float u_alfa;       // det hängande ljusets synlighet
 uniform vec4 u_ring[4];     // x, ålder, styrka
 uniform vec3 u_dr[6];       // fallande droppar: x, y, radie
@@ -205,7 +209,6 @@ void main() {
   float ve = length((p - vec2(0.5, YV)) / vr);
   float ljusX = u_ljus.x;
   float ljusBotten = u_ljus.y - u_ljus.z;
-  bool doppat = ljusBotten < YV;
   if (ke < 1.0) {
     // Insidan av vit emalj, med stearin som stelnat längs kanten
     vec3 in_ = vec3(0.62, 0.62, 0.6) * (0.45 + 0.35 * smoothstep(YV, kc.y + kr.y, p.y)) * (lys * 0.8 + 0.1);
@@ -232,10 +235,9 @@ void main() {
       vax += vec3(1.0, 0.85, 0.65) * (blank + dhx * 0.35 + hojd * 0.15) * 0.6;
       vax *= 1.0 - 0.25 * smoothstep(0.8, 1.0, ve);
       // Menisken runt ljuset där det står nere i stearinet
-      if (doppat) {
-        float rr = texture(u_prof, vec2(1.0 - 0.5 / ${N}.0, 0.5)).r;
-        vec2 dm = vec2(p.x - ljusX, (p.y - YV) * vr.x / vr.y);
-        vax += vec3(1.0, 0.9, 0.7) * smoothstep(rr + 0.01, rr, length(dm)) * 0.25;
+      if (u_snitt.y > 0.0) {
+        vec2 dm = vec2(p.x - u_snitt.x, (p.y - YV) * vr.x / vr.y);
+        vax += vec3(1.0, 0.9, 0.7) * smoothstep(u_snitt.y + 0.01, u_snitt.y, length(dm)) * 0.25;
       }
       c = mix(c, vax, smoothstep(1.0, 0.97, ve));
     }
@@ -257,29 +259,39 @@ void main() {
     vec2 q = vec2(ca * d0.x + sa * d0.y, -sa * d0.x + ca * d0.y) + hp;
     float v = (u_ljus.y - q.y) / Lh;
     float dx = q.x - ljusX;
-    vec2 pr = texture(u_prof, vec2(clamp(v, 0.0, 1.0) * (1.0 - 1.0 / ${N}.0) + 0.5 / ${N}.0, 0.5)).rg;
-    float r = max(pr.x, 1e-4), hv = pr.y;
+    // Profilen: egen radie åt vänster och höger, så att ljuset blir knöligt
+    float vt = clamp(v, 0.0, 1.0);
+    vec3 pr = texture(u_prof, vec2(vt * (1.0 - 1.0 / ${N}.0) + 0.5 / ${N}.0, 0.5)).rgb;
+    float sida = smoothstep(-0.0015, 0.0015, dx);
+    float r = max(mix(pr.r, pr.g, sida), 1e-4), hv = pr.b;
+    // Lutningen längs ljuset ger knölarna ljus och skugga
+    float dv = 1.5 / ${N}.0;
+    vec3 pa = texture(u_prof, vec2(clamp(vt - dv, 0.0, 1.0) * (1.0 - 1.0 / ${N}.0) + 0.5 / ${N}.0, 0.5)).rgb;
+    vec3 pb = texture(u_prof, vec2(clamp(vt + dv, 0.0, 1.0) * (1.0 - 1.0 / ${N}.0) + 0.5 / ${N}.0, 0.5)).rgb;
+    float lut = (mix(pb.r, pb.g, sida) - mix(pa.r, pa.g, sida)) / (2.0 * dv * Lh);
     float inne = 0.0;
     float ny = 0.0;
     if (v >= 0.0 && v <= 1.0) {
       inne = smoothstep(r, r - px * 1.3, abs(dx));
+      ny = -clamp(lut * 3.0, -0.8, 0.8);
     } else if (v < 0.0) {
-      // Den rundade axeln upptill
+      // Den smala halsen upptill, där veken går in
       float capH = r * 0.7;
       float e = length(vec2(dx / r, (q.y - u_ljus.y) / max(capH, 1e-4)));
       inne = smoothstep(1.0, 1.0 - px * 1.3 / r, e);
       ny = clamp((q.y - u_ljus.y) / max(capH, 1e-4), 0.0, 1.0) * 0.8;
     } else {
-      // Spetsen, där dropparna har stelnat
-      float capH = r * 0.75 + u_spets.x;
-      float e = length(vec2(dx / r, (ljusBotten - q.y) / max(capH, 1e-4)));
-      inne = smoothstep(1.0, 1.0 - px * 1.3 / r, e);
-      ny = -clamp((ljusBotten - q.y) / max(capH, 1e-4), 0.0, 1.0) * 0.8;
+      // Spetsen: dropparna har stelnat till en avsmalnande, lite spetsig ände
+      float capH = r * 0.9 + u_spets.x;
+      float yy = clamp((ljusBotten - q.y) / max(capH, 1e-4), 0.0, 1.0);
+      float w = r * pow(max(0.0, 1.0 - pow(yy, 1.7)), 0.55);
+      inne = smoothstep(w, w - px * 1.3, abs(dx)) * step(q.y, ljusBotten) * step(ljusBotten - capH, q.y);
+      ny = -0.25 - 0.6 * yy;
     }
     // Droppen som hänger under spetsen medan stearinet är varmt
     float drR = u_spets.y;
     if (drR > 0.0) {
-      vec2 dc = vec2(ljusX, ljusBotten - (r * 0.75 + u_spets.x) - drR * 0.35);
+      vec2 dc = vec2(ljusX, ljusBotten - (r * 0.9 + u_spets.x) - drR * 0.2);
       float e = length(vec2(dx, (q.y - dc.y) * 0.8) ) / drR;
       float d = smoothstep(1.0, 0.85, e);
       if (d > inne) { inne = d; hv = max(hv, u_spets.z); ny = -0.4; }
@@ -288,15 +300,15 @@ void main() {
     inne *= smoothstep(YV - 0.001, YV + 0.003, p.y);
     if (inne > 0.0) {
       float nx = clamp(dx / r, -1.0, 1.0);
-      vec3 n = normalize(vec3(nx, ny, sqrt(max(0.0, 1.0 - nx * nx)) + 0.05));
+      vec3 n = normalize(vec3(nx, ny * sqrt(max(0.0, 1.0 - nx * nx)), sqrt(max(0.0, 1.0 - nx * nx)) + 0.05));
       vec3 l = normalize(vec3(-0.45, 0.25, 0.85));
       float dif = (max(dot(n, l), 0.0) + 0.35) / 1.35;
       vec3 kall = vec3(0.97, 0.95, 0.9);
       vec3 varm = vec3(0.94, 0.84, 0.64);
       vec3 col = mix(kall, varm, hv);
       // Svaga lager och ojämnheter i ytan
-      col *= 0.965 + 0.035 * brus(vec2(v * 140.0, nx * 3.0));
-      vec3 belys = lys * 0.5 + vec3(0.34, 0.33, 0.32);
+      col *= 0.95 + 0.05 * brus(vec2(v * 90.0, nx * 2.0 + sida * 7.0));
+      vec3 belys = lys * 0.35 + vec3(0.46, 0.45, 0.44);
       col *= (0.3 + 0.7 * dif) * belys;
       // Stearinet släpper igenom lite ljus i kanterna
       col += vec3(1.0, 0.68, 0.38) * pow(1.0 - n.z, 2.0) * (0.06 + 0.12 * u_varme);
@@ -371,24 +383,31 @@ export default {
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
     const u = platser(gl, prog, ['u_res', 'u_tid', 'u_synlig', 'u_prof', 'u_ljus', 'u_spets', 'u_alfa',
-      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors']);
+      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors', 'u_snitt']);
     gl.useProgram(prog);
     const tom = gl.createVertexArray();
 
     // ---------- Ljuset ----------
+    // Två sidor, vänster och höger, så att ljuset kan bli knöligt. Det fasta stearinet
+    // och det ännu flytande lagret hålls isär: det flytande rinner nedåt medan det är
+    // varmt och stelnar efter hand som det svalnar.
     const H = () => duk.clientHeight / duk.clientWidth;
-    const vilaTopp = () => Math.max(YV + LANGD + 0.12, H() * 0.72);
-    const r = new Float32Array(N).fill(VEKE);
+    const HALS = 0.07;                   // veken mellan pinnen och ljuset
+    const vilaY = () => Math.max(YV + LANGD + HALS + 0.12, H() * 0.72 + HALS);
+    const fast = [new Float32Array(N).fill(VEKE), new Float32Array(N).fill(VEKE)];
+    const film = [new Float32Array(N), new Float32Array(N)];
     const varme = new Float32Array(N);
     const nere = new Uint8Array(N);
     const vidDopp = new Float32Array(N);
-    let topp = vilaTopp() + 0.25, mal = vilaTopp();
-    let spets = 0;                       // stelnad droppe längst ner
+    const pinne = { x: 0.5, y: vilaY() + 0.25 };
+    const mal = { x: 0.5, y: vilaY() };
+    let vinkel = 0, vinkelFart = 0, forraX = pinne.x, forraVx = 0;
+    let spets = 0;                       // stelnade droppar längst ner
     let droppe = null;                   // { r, nasta, varm }
     const fall = [];                     // fallande droppar { x, y, vy, r }
     const ringar = [];                   // { x, t0, s }
-    let fas = 'doppa', fasTid = 0, alfa = 0;
-    let rors = 0, forraTopp = topp;
+    let fas = 'ny', fasTid = 0, alfa = 0;   // rummet börjar med att veken sänks ner
+    let rors = 0, forraBotten = 9;
     let dopp = 0;
 
     let antal = 0;
@@ -400,9 +419,34 @@ export default {
     }));
 
     function nollstall() {
-      r.fill(VEKE); varme.fill(0); nere.fill(0); vidDopp.fill(0);
+      for (let s = 0; s < 2; s++) { fast[s].fill(VEKE); film[s].fill(0); }
+      varme.fill(0); nere.fill(0); vidDopp.fill(0);
       spets = 0; droppe = null;
+      vinkel = 0; vinkelFart = 0;
+      ljusForm = ojamnhet(); doppForm = ojamnhet();
     }
+    // Varje lager blir lite ojämnt: mjuka vågor längs ljuset och ett par knölar,
+    // olika på vänster och höger sida
+    function ojamnhet() {
+      const sidor = [];
+      for (let s = 0; s < 2; s++) {
+        const f1 = slump(4, 8), f2 = slump(9, 14), a1 = slump(0, 6.3), a2 = slump(0, 6.3);
+        const knolar = Array.from({ length: 2 }, () => ({ v: slump(0.15, 0.95), b: slump(0.05, 0.11), h: slump(0.1, 0.3) }));
+        sidor.push((v) => {
+          let k = 1 + 0.07 * Math.sin(v * f1 + a1) + 0.03 * Math.sin(v * f2 + a2);
+          for (const kn of knolar) k += kn.h * Math.exp(-((v - kn.v) ** 2) / (kn.b * kn.b));
+          return Math.max(0.3, k);
+        });
+      }
+      return sidor;
+    }
+    // Varje ljus får sin egen karaktär som byggs på dopp för dopp, plus lite nytt för
+    // varje lager. Längre ner fastnar mer, eftersom det som rinner ovanifrån samlas där.
+    let ljusForm = ojamnhet(), doppForm = ojamnhet();
+    const lagerForm = [0, 1].map((s) => (v) =>
+      (0.6 * ljusForm[s](v) + 0.4 * doppForm[s](v)) * (0.7 + 0.55 * Math.pow(v, 1.3)));
+    // Var en punkt på ljuset befinner sig, räknat från pinnen
+    const punkt = (avst) => [pinne.x + avst * Math.sin(vinkel), pinne.y - avst * Math.cos(vinkel)];
 
     // ---------- Ljud ----------
     const l = rumsLjud(1.4, 2);
@@ -443,27 +487,39 @@ export default {
     // ---------- Ledtext ----------
     const led = document.createElement('p');
     led.className = 'lucka-ui ledtext';
-    led.textContent = 'Dra veken ner i stearinet';
+    led.textContent = 'Ta tag i pinnen och doppa ljuset';
     led.style.bottom = '42%';
     scen.append(led);
     let ledVisad = false;
 
     // ---------- Fingret ----------
+    // Så fort hon rör vid skärmen har hon tag i pinnen, var hon än sätter fingret.
+    // Sedan följer pinnen fingret, upp, ner och åt sidan, tills hon släpper.
+    const tillVarld = (x, y) => [x / duk.clientWidth, (duk.clientHeight - y) / duk.clientWidth];
     let grepp = null;
     fingrar(duk, {
       ner: (x, y, id) => {
         if (grepp || fas !== 'doppa') return;
-        grepp = { id, y0: y, topp0: mal };
+        const [wx, wy] = tillVarld(x, y);
+        grepp = { id, ox: pinne.x - wx, oy: pinne.y - wy };
+        mal.x = pinne.x; mal.y = pinne.y;
       },
       drag: (x, y, id) => {
         if (!grepp || grepp.id !== id) return;
-        const dy = (y - grepp.y0) / duk.clientWidth;
-        mal = klamp(grepp.topp0 - dy * 1.5, YV + 0.025, vilaTopp());
+        const [wx, wy] = tillVarld(x, y);
+        mal.x = wx + grepp.ox;
+        mal.y = wy + grepp.oy;
       },
       upp: (x, y, id) => {
         if (grepp && grepp.id === id) grepp = null;
       },
     });
+    // Pinnen hålls inom rummet, och nere i kastrullen styr kanten ljuset inåt
+    function begransa() {
+      mal.x = klamp(mal.x, 0.12, 0.88);
+      mal.y = klamp(mal.y, YV + 0.025 + HALS, H() - 0.05);
+      if (mal.y - HALS - LANGD < 0.72) mal.x = klamp(mal.x, 0.5 - 0.2, 0.5 + 0.2);
+    }
 
     const tex = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
@@ -472,87 +528,160 @@ export default {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const data = new Float32Array(N * 2);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, N, 1, 0, gl.RG, gl.FLOAT, data);
+    const data = new Float32Array(N * 4);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, N, 1, 0, gl.RGBA, gl.FLOAT, data);
     gl.uniform1i(u.u_prof, 0);
     const ringData = new Float32Array(16);
     const drData = new Float32Array(18);
     const fData = new Float32Array(32);
+    const ring = (x, t0, s) => { ringar.push({ x, t0, s }); if (ringar.length > 4) ringar.shift(); };
 
     // ---------- Ritslinga ----------
     const stoppa = slinga((tid, dt) => {
-      const vila = vilaTopp();
       // Ledtexten visas en stund i början, tills hon har doppat första gången
       if (!ledVisad && tid > 2.5) { led.classList.add('syns'); ledVisad = true; }
-      if (ledVisad && (dopp > 0 || tid > 14)) led.classList.remove('syns');
+      if (ledVisad && (dopp > 0 || tid > 16)) led.classList.remove('syns');
 
-      // Veken följer fingret. Släpper hon lyfts den sakta och jämnt, som när man
-      // drar upp ett ljus ur stearinet.
-      if (fas === 'doppa' && !grepp) mal = vila;
-      const fore = topp;
-      if (grepp) topp += (mal - topp) * Math.min(1, dt * 9);
-      else topp += klamp(mal - topp, -0.6 * dt, 0.42 * dt);
-      const fart = Math.abs(topp - fore) / Math.max(dt, 1e-3);
-      const botten = topp - LANGD;
+      // ---- Pinnen och ljuset ----
+      const botten0 = pinne.y - (HALS + LANGD) * Math.cos(vinkel);
+      if (fas === 'doppa' && !grepp && botten0 < YV + 0.04) {
+        // Släpper hon med ljuset nere i stearinet lyfts det sakta upp ur det
+        mal.y = pinne.y + 0.35 * dt;
+      } else if (fas === 'doppa' && !grepp) {
+        mal.x = pinne.x; mal.y = pinne.y;
+      }
+      begransa();
+      const fore = { x: pinne.x, y: pinne.y };
+      const k = Math.min(1, dt * 16);
+      pinne.x += (mal.x - pinne.x) * k;
+      pinne.y += (mal.y - pinne.y) * k;
+      const fart = Math.hypot(pinne.x - fore.x, pinne.y - fore.y) / Math.max(dt, 1e-3);
+
+      // Ljuset hänger som en pendel från pinnen och svänger när hon för det åt sidan.
+      // Nere i stearinet bromsas det nästan helt.
+      const vx = (pinne.x - forraX) / Math.max(dt, 1e-3);
+      const ax = dt > 0 ? (vx - forraVx) / dt : 0;
+      forraX = pinne.x; forraVx += (vx - forraVx) * 0.5;
+      const iVax = botten0 < YV;
+      const broms = iVax ? 16 : 2.4;
+      vinkelFart += (-28 * Math.sin(vinkel) - klamp(ax, -60, 60) * 2.6 * Math.cos(vinkel) - broms * vinkelFart) * dt;
+      vinkel = klamp(vinkel + vinkelFart * dt, -0.45, 0.45);
+      if (iVax) vinkel *= Math.exp(-dt * 3);
+      vinkel += 0.0015 * Math.sin(tid * 0.7) * dt;
+
+      const cosV = Math.cos(vinkel);
+      const botten = pinne.y - (HALS + LANGD) * cosV;
+      const [spetsX] = punkt(HALS + LANGD);
 
       // Ringar när spetsen bryter ytan
-      if (forraTopp - LANGD >= YV && botten < YV) {
-        const f = Math.abs(forraTopp - topp) / Math.max(dt, 1e-3);
-        ringar.push({ x: 0.5, t0: tid, s: Math.min(1, 0.3 + f * 0.8) });
-        if (ringar.length > 4) ringar.shift();
-        plopp(f);
+      if (forraBotten >= YV && botten < YV) {
+        ring(spetsX, tid, Math.min(1, 0.3 + fart * 0.8));
+        plopp(fart);
       }
-      forraTopp = topp;
+      forraBotten = botten;
 
-      // Lager för lager: det som lämnar stearinet tar med sig ett nytt lager
+      // ---- Lager för lager ----
       for (let i = 0; i < N; i++) {
         const v = i / (N - 1);
-        const y = topp - v * LANGD;
+        const y = pinne.y - (HALS + v * LANGD) * cosV;
         if (y < YV) {
-          if (!nere[i]) { nere[i] = 1; vidDopp[i] = varme[i]; }
+          if (!nere[i]) {
+            nere[i] = 1;
+            vidDopp[i] = varme[i];
+            // Det som ännu är flytande smälter tillbaka ner i kastrullen
+            film[0][i] = 0; film[1][i] = 0;
+          }
           varme[i] += (1 - varme[i]) * Math.min(1, dt / 0.12);
+          // Ligger det kvar länge mjuknar det yttersta lagret lite
+          if (varme[i] > 0.95) for (let s = 0; s < 2; s++) fast[s][i] = Math.max(VEKE, fast[s][i] - 0.00006 * dt);
         } else {
           if (nere[i]) {
             nere[i] = 0;
-            r[i] += LAGER * (1 - 0.55 * vidDopp[i]) * (1 + 0.3 * Math.pow(v, 6));
+            // Ett nytt flytande lager. Var ljuset redan varmt fastnar mindre.
+            const tjock = LAGER * (1 - 0.6 * vidDopp[i]);
+            film[0][i] += tjock * lagerForm[0](v);
+            film[1][i] += tjock * lagerForm[1](v);
             if (i === N - 1) {
-              droppe = { r: 0.0065, nasta: slump(0.3, 0.6), varm: 1 };
+              droppe = { r: 0.0055, nasta: slump(0.3, 0.6), varm: 1 };
               dopp++;
+              doppForm = ojamnhet();
             }
           }
-          varme[i] *= Math.exp(-dt / (KYL * (0.7 + 0.3 * r[i] / KLAR)));
+          varme[i] *= Math.exp(-dt / KYL);
         }
-        data[i * 2] = r[i];
-        data[i * 2 + 1] = varme[i];
       }
+      // Det flytande stearinet rinner nedåt medan det är varmt och stelnar när det svalnar
+      for (let s = 0; s < 2; s++) {
+        const F = film[s], S = fast[s];
+        for (let i = N - 2; i >= 0; i--) {
+          if (nere[i] || F[i] <= 0) continue;
+          const w = varme[i];
+          const flyt = Math.min(0.45, 6 * w * w * (F[i] / LAGER) * dt);
+          const ner = F[i] * flyt;
+          F[i] -= ner;
+          if (!nere[i + 1]) F[i + 1] += ner;
+        }
+        for (let i = 0; i < N; i++) {
+          if (F[i] <= 0) continue;
+          const stel = F[i] * Math.min(1, dt * 3.2 * (1 - varme[i]));
+          F[i] -= stel;
+          if (i === N - 1) {
+            // Längst ner stelnar det som runnit dit till en tjockare, längre spets
+            S[i] += stel * 0.5;
+            spets = Math.min(0.04, spets + stel * 0.3);
+          } else S[i] += stel;
+        }
+        // Det som har runnit ner till spetsen medan det är varmt droppar av
+        const B = N - 1;
+        if (!nere[B] && F[B] > 0) F[B] -= F[B] * Math.min(1, dt * 5 * varme[B]);
+      }
+      for (let i = 0; i < N; i++) {
+        data[i * 4] = fast[0][i] + film[0][i];
+        data[i * 4 + 1] = fast[1][i] + film[1][i];
+        data[i * 4 + 2] = varme[i];
+        data[i * 4 + 3] = 0;
+      }
+      // Spetsen rundas av mot det som är ovanför
+      for (let s = 0; s < 2; s++) data[(N - 1) * 4 + s] = Math.max(data[(N - 1) * 4 + s], 0.8 * data[(N - 2) * 4 + s]);
+      const rSlut = (data[(N - 1) * 4] + data[(N - 1) * 4 + 1]) * 0.5;
+
       // Droppen under spetsen: den droppar ett par gånger och stelnar sedan
+      const spetsAvst = HALS + LANGD + rSlut * 0.9 + spets;
       if (droppe) {
         droppe.nasta -= dt;
         droppe.varm = varme[N - 1];
         if (botten < YV) droppe = null;
         else if (droppe.nasta <= 0 && droppe.r > 0.0032 && droppe.varm > 0.45) {
-          fall.push({ x: 0.5, y: botten - r[N - 1] * 0.75 - spets - droppe.r, vy: 0, r: droppe.r * 0.6 });
+          const [dx, dy] = punkt(spetsAvst + droppe.r);
+          fall.push({ x: dx, y: dy, vy: 0, r: droppe.r * 0.6 });
           droppe.r *= 0.72;
           droppe.nasta = slump(0.35, 0.9);
         } else if (droppe.varm < 0.4) {
-          spets = Math.min(0.022, spets + droppe.r * 0.35);
+          spets = Math.min(0.04, spets + droppe.r * 0.35);
           droppe = null;
         }
       }
-      for (let k = fall.length - 1; k >= 0; k--) {
-        const d = fall[k];
+      for (let i = fall.length - 1; i >= 0; i--) {
+        const d = fall[i];
         d.vy += 2.2 * dt;
         d.y -= d.vy * dt;
         if (d.y < YV) {
-          fall.splice(k, 1);
-          ringar.push({ x: d.x + slump(-0.004, 0.004), t0: tid, s: 0.25 });
-          if (ringar.length > 4) ringar.shift();
+          fall.splice(i, 1);
+          ring(d.x + slump(-0.004, 0.004), tid, 0.25);
           plipp();
         }
       }
 
+      // Där ljuset går genom ytan, för menisken
+      let snittX = 0, snittR = 0;
+      if (iVax) {
+        const avst = (pinne.y - YV) / Math.max(cosV, 0.3);
+        snittX = pinne.x + avst * Math.sin(vinkel);
+        const vi = klamp(Math.round(((avst - HALS) / LANGD) * (N - 1)), 0, N - 1);
+        snittR = Math.max(VEKE, (data[vi * 4] + data[vi * 4 + 1]) * 0.5);
+      }
+
       // Omrörningen i stearinet och det tröga ljudet
-      const iVax = botten < YV;
       rors += ((iVax ? Math.min(1, fart * 1.5) : 0) - rors) * Math.min(1, dt * 4);
       const t = ctx.currentTime;
       trG.gain.setTargetAtTime(0.07 * rors, t, 0.06);
@@ -567,17 +696,16 @@ export default {
       puttraTid -= dt;
       if (puttraTid <= 0) {
         bubbla(ctx, ut, slump(100, 170), 0.01);
-        ringar.push({ x: 0.5 + slump(-0.15, 0.15), t0: tid, s: 0.12 });
-        if (ringar.length > 4) ringar.shift();
+        ring(0.5 + slump(-0.15, 0.15), tid, 0.12);
         puttraTid = slump(2, 5);
       }
 
-      // Färdigt? Ljuset är tjockt nog och har lämnat stearinet
+      // Färdigt? Ljuset är tjockt nog, har lämnat stearinet och hon har släppt pinnen
       if (fas === 'doppa') {
         alfa = Math.min(1, alfa + dt / 1.2);
         let summa = 0, n = 0;
-        for (let i = Math.floor(N * 0.12); i < Math.floor(N * 0.95); i++) { summa += r[i]; n++; }
-        if (summa / n >= KLAR && botten > YV + 0.05 && !grepp) {
+        for (let i = Math.floor(N * 0.1); i < Math.floor(N * 0.95); i++) { summa += data[i * 4] + data[i * 4 + 1]; n += 2; }
+        if (summa / n >= KLAR && botten > YV + 0.05 && !grepp && !droppe) {
           fas = 'klar'; fasTid = 0;
           klocka(587.3, { till: ut, eko, styrka: 0.028, ansats: 0.2, langd: 5 });
           klocka(880, { till: ut, eko, styrka: 0.018, ansats: 0.25, langd: 5, nar: ctx.currentTime + 0.5 });
@@ -585,11 +713,10 @@ export default {
       } else if (fas === 'klar') {
         // Ljuset lyfts och tonar bort, och tänds i fönstret
         fasTid += dt;
-        mal = vila + 0.2;
+        mal.y = pinne.y + 0.12 * dt;
         alfa = 1 - mjuk(1.0, 2.4, fasTid);
         if (fasTid > 1.6 && fasTid - dt <= 1.6) {
-          const plats = antal % FONSTER_X.length;
-          const L = fonster[plats];
+          const L = fonster[antal % FONSTER_X.length];
           L.syns = 1; L.tand = 0;
           antal++;
           try { localStorage.setItem(NYCKEL, String(antal)); } catch {}
@@ -598,12 +725,14 @@ export default {
         if (fasTid > 3.2) {
           nollstall();
           fas = 'ny'; fasTid = 0;
-          topp = vila + 0.25; forraTopp = topp;
+          pinne.x = 0.5; pinne.y = vilaY() + 0.25; forraX = pinne.x; forraVx = 0;
+          mal.x = 0.5; mal.y = vilaY();
+          forraBotten = 9;
         }
       } else if (fas === 'ny') {
-        // En ny veke sänks ner
+        // En ny veke sänks ner på sin plats
         fasTid += dt;
-        mal = vila;
+        mal.x = 0.5; mal.y = vilaY();
         alfa = mjuk(0, 1.2, fasTid);
         if (fasTid > 1.4) fas = 'doppa';
       }
@@ -627,10 +756,8 @@ export default {
       drData.fill(0);
       fall.slice(0, 6).forEach((d, i) => { drData[i * 3] = d.x; drData[i * 3 + 1] = d.y; drData[i * 3 + 2] = d.r; });
 
-      const vinkel = 0.012 * Math.sin(tid * 0.7) + 0.006 * Math.sin(tid * 1.9) * (iVax ? 0.2 : 1);
-
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, N, 1, gl.RG, gl.FLOAT, data);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, N, 1, gl.RGBA, gl.FLOAT, data);
       anpassa(gl, duk, 0.75);
       gl.viewport(0, 0, duk.width, duk.height);
       gl.useProgram(prog);
@@ -638,8 +765,9 @@ export default {
       gl.uniform2f(u.u_res, duk.width, duk.height);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
-      gl.uniform4f(u.u_ljus, 0.5, topp, LANGD, vinkel);
+      gl.uniform4f(u.u_ljus, pinne.x, pinne.y - HALS, LANGD, vinkel);
       gl.uniform3f(u.u_spets, spets, droppe ? droppe.r : 0, droppe ? droppe.varm : 0);
+      gl.uniform2f(u.u_snitt, snittX, snittR);
       gl.uniform1f(u.u_alfa, alfa);
       gl.uniform4fv(u.u_ring, ringData);
       gl.uniform3fv(u.u_dr, drData);
