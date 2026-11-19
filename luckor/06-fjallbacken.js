@@ -9,6 +9,7 @@ import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } fr
 import { BRUS } from '../lib/glsl.js';
 import { skapaVatska } from '../lib/vatska.js';
 import { skapaPorl } from '../lib/porl.js';
+import { skapaMatta } from '../lib/inspelning.js';
 import { mjuk, slump, rumsLjud, slinga, fastaSteg, fingrar, stangning } from '../lib/scen.js';
 
 const W = 40, H = 80;      // vätskans rutnät
@@ -292,8 +293,21 @@ export default {
     // ---------- Ljud ----------
     const l = rumsLjud(1.2, 1.6);
     const { ctx, ut } = l;
-    const porl = skapaPorl(ctx, ut);
-    l.kallor.push(...porl.kallor);
+    // Porlet: en inspelning av en liten bäck på svenska landsbygden. Där vattnet
+    // virvlar, till exempel runt fingret, blir porlet starkare och ljusare.
+    const backBuss = ctx.createGain(); backBuss.gain.value = 0.7;
+    const ljusF = ctx.createBiquadFilter(); ljusF.type = 'lowpass'; ljusF.frequency.value = 4000; ljusF.Q.value = 0.6;
+    backBuss.connect(ljusF).connect(ut);
+    const backMatta = skapaMatta(ctx, backBuss, 'ljud/fjallback.mp3', {
+      avsnitt: [[0.1, 15.5]], niva: 0.05, bit: [4, 8], over: 1.5, hp: 90, tonhojd: 0.03,
+    });
+    l.kallor.push(backMatta);
+    let porl = null;
+    backMatta.klar.catch(() => {
+      // Gick inspelningen inte att ladda tar det framräknade porlet över
+      porl = skapaPorl(ctx, ut);
+      l.kallor.push(...porl.kallor);
+    });
 
     // ---------- Fingret ----------
     const tillRut = (x, y) => [(x / duk.clientWidth) * W, (y / duk.clientHeight) * H];
@@ -331,7 +345,10 @@ export default {
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RGBA, gl.FLOAT, texData);
 
       // Porlet blir livligare där vattnet virvlar, till exempel runt fingret
-      if (tid > 0.8) porl.uppdatera(dt, Math.min(1, 0.15 + turbulens * 0.8));
+      const liv = Math.min(1, 0.15 + turbulens * 0.8);
+      if (porl && tid > 0.8) porl.uppdatera(dt, liv);
+      backBuss.gain.setTargetAtTime(0.6 + 0.55 * liv, ctx.currentTime, 0.25);
+      ljusF.frequency.setTargetAtTime(2800 + 7000 * liv, ctx.currentTime, 0.25);
 
       anpassa(gl, duk, 0.6);
       gl.uniform2f(u.u_res, duk.width, duk.height);

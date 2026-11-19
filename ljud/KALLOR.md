@@ -8,3 +8,4 @@ krav på att nämna upphovspersonen). De är Freesounds förhandslyssningsfiler 
 | --- | --- | --- |
 | `grotta-back.mp3` | Grottan (24) | "Small Stream.wav" av Wildhorsemann, en minut ur mitten, https://freesound.org/people/Wildhorsemann/sounds/346748/ |
 | `grotta-eld.mp3` | Grottan (24) | "Campfire (Position 2)" av SKrafft, https://freesound.org/people/SKrafft/sounds/681367/ |
+| `fjallback.mp3` | Fjällbäcken (6) | "Bubble, murmur of small stream in Sweden, Spring" av dankri2, https://freesound.org/people/dankri2/sounds/394304/ |
