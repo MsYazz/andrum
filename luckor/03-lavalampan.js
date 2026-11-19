@@ -8,7 +8,7 @@
 // Lutar man telefonen stiger vaxet fortfarande uppåt i världen.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, slappGL, utanGL } from '../lib/gl.js';
-import { ljud, brusKalla, sov } from '../lib/ljud.js';
+import { ljud, sov } from '../lib/ljud.js';
 import { lyssnaLutning } from '../lib/rorelse.js';
 
 const KLUMPAR = 6;
@@ -223,23 +223,6 @@ export default {
     ut.connect(master);
     ut.gain.setTargetAtTime(1.2, ctx.currentTime, 1.5);
     const kallor = [];
-
-    // Dovt sus, som att höra vätskan inifrån
-    const sus = brusKalla('rosa');
-    const susFilter = ctx.createBiquadFilter();
-    susFilter.type = 'lowpass';
-    susFilter.frequency.value = 240;
-    susFilter.Q.value = 0.5;
-    const susGain = ctx.createGain();
-    susGain.gain.value = 0.04;
-    const susLfo = ctx.createOscillator();
-    susLfo.frequency.value = 0.045;
-    const susDjup = ctx.createGain();
-    susDjup.gain.value = 60;
-    susLfo.connect(susDjup).connect(susFilter.frequency);
-    sus.connect(susFilter).connect(susGain).connect(ut);
-    susLfo.start();
-    kallor.push(sus, susLfo);
 
     // Blubb. Stora klumpar blubbar dovt, små ljusare. Ibland blir det ett dubbelblubb.
     let senastBlubb = 0;
