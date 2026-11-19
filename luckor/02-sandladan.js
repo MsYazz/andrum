@@ -337,8 +337,9 @@ export default {
 
     // Svag ökenvind: en inspelning från den mexikanska öknen, där ett kort missljud
     // hoppas över. Går den inte att ladda räknas vinden fram som förut.
+    // Byarna jämnas ut, så att vinden ligger lugnt och jämnt i bakgrunden
     const vindMatta = skapaMatta(ctx, ut, 'ljud/sandlada-vind.mp3', {
-      avsnitt: [[0.5, 15.9], [17.0, 72.4]], niva: 0.015, bit: [10, 20], over: 4, hp: 70, tonhojd: 0.02,
+      avsnitt: [[0.5, 15.9], [17.0, 72.4]], niva: 0.008, bit: [10, 20], over: 4, hp: 70, tonhojd: 0.02, jamna: 0.65,
     });
     kallor.push(vindMatta);
     vindMatta.klar.catch(framraknadVind);
