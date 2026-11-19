@@ -14,6 +14,7 @@ import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } fr
 import { brusKalla, rum } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning } from '../lib/scen.js';
+import { skapaMatta, spelaKorn } from '../lib/inspelning.js';
 
 const GNISTOR = 220;
 
@@ -261,6 +262,7 @@ export default {
     let brand = 1;                           // glödens plats längs blosset, 1 = toppen
     let tand = 1;                            // 1 brinner, 0 slocknat
     let tander = 0;                          // ett nytt bloss håller på att tändas
+    let tandSpelat = true;
     let fart = 0;
     let rorTid = 0;
     let nytt = null;                         // det otända blosset i nederkanten
@@ -302,7 +304,7 @@ export default {
           vinkel = NYTT_V;
           grepp.x = N.Bx + Math.cos(NYTT_V) * 0.04; grepp.y = N.By + Math.sin(NYTT_V) * 0.04;
           nytt = null;
-          brand = 1; tand = 0; tander = 0.0001;
+          brand = 1; tand = 0; tander = 0.0001; tandSpelat = false;
           forraPunkt = null;
         }
         mal.x = wx; mal.y = wy;
@@ -342,6 +344,25 @@ export default {
     const naG = ctx.createGain(); naG.gain.value = 0.02;
     natt.connect(naF).connect(naG).connect(ut);
     l.kallor.push(sprak, frus, sus, natt);
+    // Blossets fräs: en inspelning av ett riktigt tomtebloss. Den följer glöden, och
+    // när ett nytt bloss tänds spelas den riktiga tändningen ur inspelningen. Går den
+    // inte att ladda räknas fräset fram som förut.
+    const blossBuss = ctx.createGain(); blossBuss.gain.value = 0;
+    blossBuss.connect(ut);
+    const blossEko = ctx.createGain(); blossEko.gain.value = 0.3;
+    blossBuss.connect(blossEko).connect(eko);
+    const blossMatta = skapaMatta(ctx, blossBuss, 'ljud/tomtebloss.mp3', {
+      avsnitt: [[3.0, 29.5]], niva: 0.03, bit: [5, 10], over: 1.5, hp: 250, tonhojd: 0.03,
+    });
+    l.kallor.push(blossMatta);
+    let blossInspelning = null;
+    blossMatta.klar.then((b) => { blossInspelning = b; }, () => {});
+    // Tändningen ligger mellan 1,5 och 3 sekunder i inspelningen
+    const tandLjud = () => {
+      if (!blossInspelning) return false;
+      spelaKorn(ctx, blossMatta.ing, blossInspelning, [1.53], { langd: 1.6, styrka: 1, tonhojd: 0.03 });
+      return true;
+    };
     // Ett mjukt fräs när ett bloss tar eld eller slocknar
     function fras(styrka, langd) {
       const t = ctx.currentTime;
@@ -395,7 +416,8 @@ export default {
           const a = Math.random() * Math.PI * 2, v = slump(0.2, 0.6);
           spruta(topp.x, topp.y, Math.cos(a) * v, Math.sin(a) * v, slump(0.1, 0.3), 0);
         }
-        if (tander < 0.05) fras(0.035, 0.5);
+        // Tändljudet spelas en gång per bloss
+        if (!tandSpelat) { tandSpelat = true; if (!tandLjud()) fras(0.035, 0.5); }
       }
 
       // Nya gnistor från toppen, åt alla håll
@@ -478,8 +500,10 @@ export default {
       // ---------- Ljud ----------
       const t = ctx.currentTime;
       const sving = klamp(fart / 2.5, 0, 1);
-      spG.gain.setTargetAtTime(0.08 * glod * (0.75 + 0.25 * Math.random()), t, 0.03);
-      frG.gain.setTargetAtTime(0.025 * glod, t, 0.2);
+      const inspelad = !!blossInspelning;
+      spG.gain.setTargetAtTime(inspelad ? 0 : 0.08 * glod * (0.75 + 0.25 * Math.random()), t, 0.03);
+      frG.gain.setTargetAtTime(inspelad ? 0 : 0.025 * glod, t, 0.2);
+      blossBuss.gain.setTargetAtTime(glod, t, glod > 0.05 ? 0.15 : 0.25);
       suG.gain.setTargetAtTime(0.05 * sving, t, 0.08);
       suF.frequency.setTargetAtTime(400 + 600 * sving, t, 0.1);
     });

@@ -11,6 +11,7 @@ import { rum } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { lyssnaLutning } from '../lib/rorelse.js';
 import { skapaVind } from '../lib/vind.js';
+import { skapaMatta } from '../lib/inspelning.js';
 import { mjuk, slump, klamp, rumsLjud, slinga, fastaSteg, fingrar, stangning, klang } from '../lib/scen.js';
 
 const ROR = 6;
@@ -154,8 +155,19 @@ export default {
     const eko = rum(3.5);
     const ekoUt = ctx.createGain(); ekoUt.gain.value = 0.5;
     eko.connect(ekoUt).connect(ut);
-    const vind = skapaVind(ctx, ut, { styrka: 0.8, ljus: 0.8 });
-    l.kallor.push(...vind.kallor);
+    // Vinden: samma inspelade ökenvind som i Sandlådan, jämnad, och lite starkare
+    // i byarna som sätter spelet i rörelse. Går den inte att ladda räknas den fram.
+    const vindBuss = ctx.createGain(); vindBuss.gain.value = 0.7;
+    vindBuss.connect(ut);
+    const vindMatta = skapaMatta(ctx, vindBuss, 'ljud/sandlada-vind.mp3', {
+      avsnitt: [[0.5, 15.9], [17.0, 72.4]], niva: 0.012, bit: [10, 20], over: 4, hp: 70, tonhojd: 0.03, jamna: 0.6,
+    });
+    l.kallor.push(vindMatta);
+    let vind = null;
+    vindMatta.klar.catch(() => {
+      vind = skapaVind(ctx, ut, { styrka: 0.8, ljus: 0.8 });
+      l.kallor.push(...vind.kallor);
+    });
     const senastSlag = TONER.map(() => 0);
     function slaRor(i, kraft) {
       const nu = performance.now();
@@ -242,7 +254,8 @@ export default {
     const d1 = new Float32Array(ROR * 4), d2 = new Float32Array(ROR * 4);
     const stoppa = slinga((tid, dt) => {
       fasta(dt, fysik);
-      vind.uppdatera(dt, Math.min(1, Math.abs(by)));
+      if (vind) vind.uppdatera(dt, Math.min(1, Math.abs(by)));
+      vindBuss.gain.setTargetAtTime(0.6 + 0.7 * Math.min(1, Math.abs(by)), ctx.currentTime, 0.4);
       const sy = skivaY();
       ror.forEach((r, i) => {
         r.klang *= Math.exp(-dt * 1.5);
