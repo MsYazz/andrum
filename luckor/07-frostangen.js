@@ -3,11 +3,17 @@
 // taget. Varje steg knastrar i frosten och lämnar ett mörkgrönt fotspår, vänster och
 // höger om vartannat i den riktning hon går. Spåren frostar långsamt igen.
 // Ett minne av hennes önskan om en medveten promenad, fast i miniatyr.
+// Sätter hon ner två fingrar på en gång blir det ett jämfotahopp: två spår sida vid sida
+// och en mjuk duns i gräset. Stegen, hoppen och vinterbrisen är riktiga inspelningar.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
 import { brusKalla } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, rumsLjud, slinga, fingrar, stangning, brusstot } from '../lib/scen.js';
+import { skapaMatta, skapaLjudbank } from '../lib/inspelning.js';
+
+// Stegen i inspelningen av frusen gräs: fem gångsteg och fem löpsteg, [start, längd]
+const STEG = [[0.0, 0.55], [1.07, 0.55], [2.16, 0.5], [3.13, 0.5], [4.11, 0.55], [5.70, 0.42], [6.60, 0.36], [7.43, 0.4], [8.32, 0.4], [9.18, 0.42]];
 
 const FW = 128, FH = 256;     // frostens rutnät
 const ATERFROST = 55;         // sekunder tills ett spår har frostat igen
@@ -133,17 +139,27 @@ export default {
     // ---------- Ljud ----------
     const l = rumsLjud(1.25, 1.5);
     const { ctx, ut } = l;
-    const vind = brusKalla('rosa');
-    const vindF = ctx.createBiquadFilter();
-    vindF.type = 'lowpass'; vindF.frequency.value = 320;
-    const vindG = ctx.createGain(); vindG.gain.value = 0.03;
-    const vindLfo = ctx.createOscillator(); vindLfo.frequency.value = 0.05;
-    const vindDjup = ctx.createGain(); vindDjup.gain.value = 0.015;
-    vindLfo.connect(vindDjup).connect(vindG.gain);
-    vind.connect(vindF).connect(vindG).connect(ut);
-    vindLfo.start();
-    l.kallor.push(vind, vindLfo);
+    // Vinterbrisen: en mjuk vind vid en skogskant, där snö faller på bruna löv
+    const vindMatta = skapaMatta(ctx, ut, 'ljud/frost-vind.mp3', { niva: 0.012, bit: [10, 20], over: 4, hp: 120, tonhojd: 0.02, jamna: 0.4 });
+    l.kallor.push(vindMatta);
+    vindMatta.klar.catch(() => {
+      const vind = brusKalla('rosa');
+      const vindF = ctx.createBiquadFilter();
+      vindF.type = 'lowpass'; vindF.frequency.value = 320;
+      const vindG = ctx.createGain(); vindG.gain.value = 0.03;
+      const vindLfo = ctx.createOscillator(); vindLfo.frequency.value = 0.05;
+      const vindDjup = ctx.createGain(); vindDjup.gain.value = 0.015;
+      vindLfo.connect(vindDjup).connect(vindG.gain);
+      vind.connect(vindF).connect(vindG).connect(ut);
+      vindLfo.start();
+      l.kallor.push(vind, vindLfo);
+    });
+    // Stegen i frosten och landningen efter ett hopp
+    const stegBank = skapaLjudbank(ctx, ut, 'ljud/frost-steg.mp3', STEG, { maxTopp: 0.12, hp: 80 });
+    const landBank = skapaLjudbank(ctx, ut, 'ljud/frost-landning.mp3', [[0.12, 0.85]], { maxTopp: 0.14, hp: 50 });
+    l.kallor.push(stegBank, landBank);
 
+    // Det framräknade knastret används bara om inspelningarna inte går att ladda.
     // Knastret i frosten: en mängd små klick på bråkdelen av en sekund, och en mjuk dov ton
     function knaster() {
       let t = ctx.currentTime;
@@ -172,23 +188,48 @@ export default {
     let forra = null;
     let hoger = false;
     const tillVarld = (x, y) => [x / duk.clientWidth, y / duk.clientWidth];
+    // Ett steg väntar ett ögonblick, så att ett andra finger som landar nästan samtidigt
+    // kan göra det till ett jämfotahopp
+    let vantande = null;
+    function riktning(wx, wy) {
+      let rx = 0, ry = -1;
+      if (forra) {
+        const dx = wx - forra.x, dy = wy - forra.y, d = Math.hypot(dx, dy);
+        if (d > 0.01) { rx = dx / d; ry = dy / d; }
+        else { rx = forra.rx; ry = forra.ry; }
+        // Mjuk sväng, så att gången blir jämn även om fingrarna hamnar lite snett
+        const bx = forra.rx * 0.35 + rx * 0.65, by = forra.ry * 0.35 + ry * 0.65;
+        const bl = Math.hypot(bx, by) || 1;
+        rx = bx / bl; ry = by / bl;
+      }
+      return [rx, ry];
+    }
+    function ettSteg(wx, wy) {
+      const [rx, ry] = riktning(wx, wy);
+      hoger = !hoger;
+      fotspar(wx, wy, rx, ry, hoger);
+      if (!stegBank.spela({ styrka: slump(0.7, 1), tonhojd: 0.07 })) knaster();
+      forra = { x: wx, y: wy, rx, ry };
+    }
+    function hopp(ax, ay, bx, by) {
+      const mx = (ax + bx) / 2, my = (ay + by) / 2;
+      // Framåt är samma håll som förut, annars uppåt på skärmen
+      const rx = forra ? forra.rx : 0, ry = forra ? forra.ry : -1;
+      fotspar(mx, my, rx, ry, true);
+      fotspar(mx, my, rx, ry, false);
+      if (!landBank.spela({ styrka: 1, tonhojd: 0.05 })) { knaster(); knaster(); }
+      forra = { x: mx, y: my, rx, ry };
+    }
     fingrar(duk, {
       ner: (x, y) => {
         const [wx, wy] = tillVarld(x, y);
-        let rx = 0, ry = -1;
-        if (forra) {
-          const dx = wx - forra.x, dy = wy - forra.y, d = Math.hypot(dx, dy);
-          if (d > 0.01) { rx = dx / d; ry = dy / d; }
-          else { rx = forra.rx; ry = forra.ry; }
-          // Mjuk sväng, så att gången blir jämn även om fingrarna hamnar lite snett
-          const bx = forra.rx * 0.35 + rx * 0.65, by = forra.ry * 0.35 + ry * 0.65;
-          const bl = Math.hypot(bx, by) || 1;
-          rx = bx / bl; ry = by / bl;
+        if (vantande) {
+          clearTimeout(vantande.timer);
+          const v = vantande; vantande = null;
+          hopp(v.x, v.y, wx, wy);
+          return;
         }
-        hoger = !hoger;
-        fotspar(wx, wy, rx, ry, hoger);
-        knaster();
-        forra = { x: wx, y: wy, rx, ry };
+        vantande = { x: wx, y: wy, timer: setTimeout(() => { const v = vantande; vantande = null; if (v) ettSteg(v.x, v.y); }, 90) };
       },
     });
 

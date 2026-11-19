@@ -4,6 +4,10 @@
 // och ett tryck i glöden rör om. Utan fläkt sjunker elden långsamt tillbaka till glöd.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
+import { skapaMatta, skapaLjudbank } from '../lib/inspelning.js';
+
+// Elden i inspelningen knäpper till ordentligt vid de här tiderna, [start, längd]
+const KNAPP = [[1.41, 0.35], [3.89, 0.4], [15.70, 0.4], [17.27, 0.4], [18.03, 0.4], [22.65, 0.35], [22.91, 0.35], [24.46, 0.3], [28.36, 0.4], [32.89, 0.3]];
 import { brusKalla } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning, brusstot } from '../lib/scen.js';
@@ -183,6 +187,16 @@ export default {
     const vasG = ctx.createGain(); vasG.gain.value = 0;
     vas.connect(vasF).connect(vasG).connect(ut);
     l.kallor.push(sus, vas);
+    // Elden: en inspelning av en livlig lägereld. Den följer hur mycket hon fläktar:
+    // svag och dov som glöd, starkare och ljusare när lågorna tar fart.
+    const eldBuss = ctx.createGain(); eldBuss.gain.value = 0.5;
+    const eldLjus = ctx.createBiquadFilter(); eldLjus.type = 'lowpass'; eldLjus.frequency.value = 3000; eldLjus.Q.value = 0.6;
+    eldBuss.connect(eldLjus).connect(ut);
+    const eldMatta = skapaMatta(ctx, eldBuss, 'ljud/glod-eld.mp3', { niva: 0.035, bit: [6, 12], over: 2, hp: 100, tonhojd: 0.04 });
+    const knappBank = skapaLjudbank(ctx, eldBuss, 'ljud/glod-eld.mp3', KNAPP, { maxTopp: 0.1, hp: 150 });
+    l.kallor.push(eldMatta, knappBank);
+    let inspelad = false;
+    eldMatta.klar.then(() => { inspelad = true; }, () => {});
 
     function knaster(kraft = 1) {
       const t = ctx.currentTime;
@@ -228,8 +242,7 @@ export default {
           const gx = klamp(wx, -0.4, 0.4), gy = Math.max(0.04, Math.min(0.2, wy));
           for (let i = 0; i < 10; i++) gnista(gx, gy, 1.1);
           flakt = Math.min(0.75, flakt + 0.12);
-          small();
-          knaster(1.2);
+          if (!knappBank.spela({ styrka: 1, tonhojd: 0.06 })) { small(); knaster(1.2); }
         }
       },
     });
@@ -266,14 +279,16 @@ export default {
       const t = ctx.currentTime;
       susG.gain.setTargetAtTime(0.025 + 0.09 * eld * eld, t, 0.3);
       susF.frequency.setTargetAtTime(300 + 700 * eld, t, 0.3);
-      vasG.gain.setTargetAtTime(0.004 + 0.012 * eld, t, 0.3);
+      vasG.gain.setTargetAtTime(inspelad ? 0 : 0.004 + 0.012 * eld, t, 0.3);
+      eldBuss.gain.setTargetAtTime(0.4 + 0.9 * eld, t, 0.3);
+      eldLjus.frequency.setTargetAtTime(2200 + 9000 * eld, t, 0.3);
       knasterTid -= dt;
-      if (knasterTid <= 0 && tid > 1.5) {
+      if (!inspelad && knasterTid <= 0 && tid > 1.5) {
         knaster(0.6 + eld * 0.6);
         knasterTid = slump(0.08, 0.6) / (0.4 + eld * 1.6);
       }
       smallTid -= dt;
-      if (smallTid <= 0) { small(); smallTid = slump(8, 20); }
+      if (smallTid <= 0) { if (!knappBank.spela({ styrka: 0.8, tonhojd: 0.06 })) small(); smallTid = slump(8, 20); }
 
       anpassa(gl, duk, 0.6);
       gl.uniform2f(u.u_res, duk.width, duk.height);

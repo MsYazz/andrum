@@ -8,6 +8,10 @@ import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } fr
 import { brusKalla, rum } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, rumsLjud, slinga, fastaSteg, fingrar, stangning, brusstot } from '../lib/scen.js';
+import { skapaLjudbank } from '../lib/inspelning.js';
+
+// Fladdermössens pip i inspelningen: korta stunder med flera pip, [start, längd]
+const FLADDER = [[0.2, 2.2], [4.0, 2.5], [7.0, 2.5], [10.5, 2.5], [13.8, 2.5], [16.9, 2.3], [19.7, 2.2], [28.5, 2.8], [34.0, 2.5], [40.0, 2.5], [42.0, 2.5]];
 
 const VW = 128, VH = 256;
 const BLAD = 4;
@@ -215,6 +219,30 @@ export default {
     const viG = ctx.createGain(); viG.gain.value = 0.012;
     vind.connect(viF).connect(viG).connect(ut);
     l.kallor.push(skvalp, skLfo, vind);
+    // Fladdermöss i skymningen: då och då flyger en förbi, och dess pip glider från
+    // ena örat till det andra. Pipen tonas in mjukt och ligger lågt, så att de aldrig
+    // kommer plötsligt.
+    const fladderPan = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain();
+    const fladderBuss = ctx.createGain(); fladderBuss.gain.value = 1;
+    fladderBuss.connect(fladderPan).connect(ut);
+    const fladderEko = ctx.createGain(); fladderEko.gain.value = 0.3;
+    fladderPan.connect(fladderEko).connect(eko);
+    const fladderBank = skapaLjudbank(ctx, fladderBuss, 'ljud/tjarn-fladdermus.mp3', FLADDER, { maxTopp: 0.05, hp: 1500, lp: 7000 });
+    l.kallor.push(fladderBank);
+    let fladderTimer = 0;
+    function fladdermus() {
+      const t = ctx.currentTime;
+      const fran = Math.random() < 0.5 ? -0.85 : 0.85;
+      if (fladderPan.pan) {
+        fladderPan.pan.cancelScheduledValues(t);
+        fladderPan.pan.setValueAtTime(fran, t);
+        fladderPan.pan.linearRampToValueAtTime(-fran * slump(0.4, 0.9), t + 2.5);
+      }
+      fladderBank.spela({ styrka: slump(0.5, 1), tonhojd: 0.05, ansats: 0.35 });
+      fladderTimer = setTimeout(fladdermus, slump(8, 20) * 1000);
+    }
+    fladderTimer = setTimeout(fladdermus, slump(5, 9) * 1000);
+    l.kallor.push({ stop: () => clearTimeout(fladderTimer) });
 
     // Ett plipp: en kort ton som stiger snabbt, som när en droppe slår i vatten
     function plipp(kraft = 1) {
