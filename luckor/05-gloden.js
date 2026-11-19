@@ -198,6 +198,14 @@ export default {
     l.kallor.push(eldMatta, knappBank);
     let inspelad = false;
     eldMatta.klar.then(() => { inspelad = true; }, () => {});
+    // Dånet: en inspelning av en brusande eld. Den ligger svagt när elden bara glöder och
+    // växer när hon blåser på elden. Går den inte att ladda räknas suset fram som förut.
+    const branBuss = ctx.createGain(); branBuss.gain.value = 0.15;
+    branBuss.connect(ut);
+    const branMatta = skapaMatta(ctx, branBuss, 'ljud/glod-brus.mp3', { avsnitt: [[0.6, 27.6]], niva: 0.04, bit: [6, 12], over: 2.5, hp: 50, tonhojd: 0.03 });
+    l.kallor.push(branMatta);
+    let branInspelad = false;
+    branMatta.klar.then(() => { branInspelad = true; }, () => {});
 
     function knaster(kraft = 1) {
       const t = ctx.currentTime;
@@ -279,7 +287,9 @@ export default {
 
       // Ljudet följer elden
       const t = ctx.currentTime;
-      susG.gain.setTargetAtTime(0.025 + 0.09 * eld * eld, t, 0.3);
+      susG.gain.setTargetAtTime(branInspelad ? 0 : 0.025 + 0.09 * eld * eld, t, 0.3);
+      // Dånet växer när hon blåser: nästan tyst som glöd, fullt när lågorna tar fart
+      branBuss.gain.setTargetAtTime(0.12 + 1.1 * Math.max(0, Math.min(1, (eld - 0.25) / 0.55)), t, 0.35);
       susF.frequency.setTargetAtTime(300 + 700 * eld, t, 0.3);
       vasG.gain.setTargetAtTime(inspelad ? 0 : 0.004 + 0.012 * eld, t, 0.3);
       eldBuss.gain.setTargetAtTime(0.4 + 0.9 * eld, t, 0.3);
