@@ -214,11 +214,8 @@ export default {
     skLfo.connect(skDjup).connect(skG.gain);
     skvalp.connect(skF).connect(skG).connect(ut);
     skLfo.start();
-    const vind = brusKalla('rosa');
-    const viF = ctx.createBiquadFilter(); viF.type = 'bandpass'; viF.frequency.value = 700; viF.Q.value = 0.4;
-    const viG = ctx.createGain(); viG.gain.value = 0.012;
-    vind.connect(viF).connect(viG).connect(ut);
-    l.kallor.push(skvalp, skLfo, vind);
+    // Ingen vind: tjärnen är helt vindstilla, ytan är spegelblank
+    l.kallor.push(skvalp, skLfo);
     // Fladdermöss i skymningen: då och då flyger en förbi, och dess pip glider från
     // ena örat till det andra. Pipen tonas in mjukt och ligger lågt, så att de aldrig
     // kommer plötsligt.
