@@ -129,7 +129,8 @@ void main() {
   // Gnistor
   for (int i = 0; i < ${GNISTOR}; i++) {
     vec4 g = u_gnista[i];
-    if (g.z <= 0.0) continue;
+    // Hoppar över allt som inte är ett giltigt, positivt tal
+    if (!(g.z > 0.0) || !(g.w > 0.0)) continue;
     vec2 dd = p - g.xy;
     float r = g.w;
     float v = exp(-dot(dd, dd) / (r * r)) * g.z;
@@ -159,7 +160,7 @@ export default {
     // ---------- Elden ----------
     let eld = 0.2;
     let flakt = 0;
-    const gnistor = Array.from({ length: GNISTOR }, () => ({ x: 0, y: 0, vx: 0, vy: 0, liv: 0, r: 0.004 }));
+    const gnistor = Array.from({ length: GNISTOR }, () => ({ x: 0, y: 0, vx: 0, vy: 0, liv: 0, r: 0.004, fas: slump(0, 6.28) }));
     let nasta = 0;
     function gnista(x, y, kraft = 1) {
       const g = gnistor[nasta];
@@ -271,7 +272,8 @@ export default {
       }
       gnistor.forEach((g, i) => {
         data[i * 4] = g.x; data[i * 4 + 1] = g.y;
-        data[i * 4 + 2] = Math.max(0, g.liv) * (0.7 + 0.3 * Math.sin(tid * 20 + g.fas * 5));
+        // En gnista som inte lyser skickar alltid 0, aldrig ett ogiltigt tal
+        data[i * 4 + 2] = g.liv > 0 ? g.liv * (0.7 + 0.3 * Math.sin(tid * 20 + g.fas * 5)) : 0;
         data[i * 4 + 3] = g.r;
       });
 
