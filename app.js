@@ -262,7 +262,10 @@ async function kliverIn(dorr) {
   const k = rektangel(kalender);
   const d = rektangel(dorr);
   kalender.style.transformOrigin = `${d.left - k.left + d.width / 2}px ${d.top - k.top + d.height * 0.55}px`;
-  if (!lugn) kalender.style.transform = 'scale(7)';
+  // Bara en måttlig förstoring: webbläsaren drar ut den färdigritade kalendern i stället
+  // för att rita om den, så en stor förstoring gör dörrarna pixliga. Kalendern tonas
+  // bort under tiden, så att det ändå känns som att kliva in genom dörren.
+  if (!lugn) kalender.style.transform = 'scale(2.5)';
   kalender.classList.add('kliver');
 
   const duk = document.createElement('canvas');

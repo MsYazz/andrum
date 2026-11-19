@@ -58,7 +58,7 @@ html:has(body.i-scen) { overflow: hidden; }
   margin: 0 auto;
   padding: calc(env(safe-area-inset-top) + 44px) 22px calc(env(safe-area-inset-bottom) + 36px);
   transform-origin: 50% 50%;
-  transition: transform 1.3s cubic-bezier(.55, 0, .3, 1), opacity 1.1s ease;
+  transition: transform 1.3s cubic-bezier(.55, 0, .3, 1), opacity 0.9s ease;
 }
 
 #kalender.kliver {
