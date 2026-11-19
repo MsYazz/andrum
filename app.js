@@ -271,6 +271,10 @@ async function kliverIn(dorr) {
   const duk = document.createElement('canvas');
   duk.className = 'duk';
   scen.prepend(duk);
+  // Ett sken i rummets färg syns tills rummets första bild är färdig, och om rummet av
+  // någon anledning aldrig säger till visas det ändå efter en stund
+  scen.style.setProperty('--rum', RUM[n].farg);
+  setTimeout(() => duk.classList.add('ritad'), 6000);
   scen.hidden = false;
   document.body.classList.add('i-scen');
 

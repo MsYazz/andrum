@@ -256,6 +256,18 @@ h1 {
   height: 100%;
   display: block;
   touch-action: none;
+  /* Rummet tonas in först när dess första bild är färdig */
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+#scen .duk.ritad { opacity: 1; }
+/* Till dess syns ett mjukt sken i rummets färg */
+#scen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(70% 45% at 50% 55%, color-mix(in srgb, var(--rum, #ffb36b) 22%, transparent), transparent 75%);
+  pointer-events: none;
 }
 
 #tillbaka {
