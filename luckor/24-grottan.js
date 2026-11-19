@@ -13,6 +13,10 @@ import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning, brusstot, bubbla, klang } from '../lib/scen.js';
 import { skapaPorl } from '../lib/porl.js';
 import { skapaVind } from '../lib/vind.js';
+import { skapaMatta, spelaKorn } from '../lib/inspelning.js';
+
+// Ställen i eldinspelningen där det knäpper till ordentligt (halvsekunder)
+const KNAPP = [0.5, 3.6, 4.6, 5.6, 6.6, 9.7, 11.2, 11.7, 17.4, 18.9];
 
 const FLUGOR = 18, GNISTOR = 70, RINGAR = 6;
 const LJUS = FLUGOR + GNISTOR;
@@ -303,13 +307,32 @@ export default {
     const eko = rum(3.5);
     const ekoUt = ctx.createGain(); ekoUt.gain.value = 0.4;
     eko.connect(ekoUt).connect(ut);
-    const porl = skapaPorl(ctx, ut, { styrka: 0.55, ljus: 0.7 });
     const vind = skapaVind(ctx, ut, { styrka: 0.15, ljus: 0.3 });
-    l.kallor.push(...porl.kallor, ...vind.kallor);
-    // Eldens dova brus
+    l.kallor.push(...vind.kallor);
+    // Bäcken: en inspelning av en liten, lugn bäck, som också ekar svagt i grottan
+    const backBuss = ctx.createGain();
+    const backEko = ctx.createGain(); backEko.gain.value = 0.35;
+    backBuss.connect(ut); backBuss.connect(backEko).connect(eko);
+    const backMatta = skapaMatta(ctx, backBuss, 'ljud/grotta-back.mp3', { niva: 0.04, bit: [8, 16], over: 3, hp: 110, tonhojd: 0.02 });
+    l.kallor.push(backMatta);
+    let porl = null;
+    backMatta.klar.catch(() => {
+      // Gick inspelningen inte att ladda tar den framräknade bäcken över
+      porl = skapaPorl(ctx, ut, { styrka: 0.55, ljus: 0.7 });
+      l.kallor.push(...porl.kallor);
+    });
+    // Elden: en inspelning av en lugn lägereld sent på natten. Den låga brummande
+    // delen av inspelningen filtreras bort, och ett mjukt framräknat brus ger värmen.
+    const eldBuss = ctx.createGain();
+    const eldEko = ctx.createGain(); eldEko.gain.value = 0.15;
+    eldBuss.connect(ut); eldBuss.connect(eldEko).connect(eko);
+    const eldMatta = skapaMatta(ctx, eldBuss, 'ljud/grotta-eld.mp3', { niva: 0.03, bit: [5, 10], over: 2, hp: 150, tonhojd: 0.04 });
+    l.kallor.push(eldMatta);
+    let eldInspelning = null, eldFramraknad = false;
+    eldMatta.klar.then((b) => { eldInspelning = b; }, () => { eldFramraknad = true; });
     const brus = brusKalla('rosa');
     const bF = ctx.createBiquadFilter(); bF.type = 'lowpass'; bF.frequency.value = 160;
-    const bG = ctx.createGain(); bG.gain.value = 0.05;
+    const bG = ctx.createGain(); bG.gain.value = 0.03;
     brus.connect(bF).connect(bG).connect(ut);
     l.kallor.push(brus);
     function knaster(kraft = 1) {
@@ -340,7 +363,8 @@ export default {
           // Ett tryck i elden: gnistor stiger och det knastrar till
           gnista(14, 1.3);
           flamma = 1;
-          knaster(1.3);
+          if (eldInspelning) spelaKorn(ctx, eldMatta.ing, eldInspelning, KNAPP, { langd: 0.55, styrka: 1 });
+          else knaster(1.3);
         } else if (Math.abs(wy - baeck(wx)) < 0.065) {
           // Ett tryck i bäcken: en droppe, och ringar sprids på vattnet
           const r = ringar[nastaRing++ % RINGAR];
@@ -424,11 +448,13 @@ export default {
       });
 
       // Ljud
-      porl.uppdatera(dt, 0.25);
+      if (porl) porl.uppdatera(dt, 0.25);
       vind.uppdatera(dt, 0);
       knasterTid -= dt;
-      if (knasterTid <= 0) { knaster(0.6 + flamma * 0.5); knasterTid = slump(0.08, 0.6) / (0.5 + flamma); }
-      bG.gain.setTargetAtTime(0.04 + 0.03 * flamma, ctx.currentTime, 0.3);
+      // Den inspelade elden knastrar av sig själv. Bara om den saknas räknas knastret fram.
+      if (eldFramraknad && knasterTid <= 0) { knaster(0.6 + flamma * 0.5); knasterTid = slump(0.08, 0.6) / (0.5 + flamma); }
+      eldBuss.gain.setTargetAtTime(0.8 + 0.2 * flamma, ctx.currentTime, 0.3);
+      bG.gain.setTargetAtTime(0.02 + 0.02 * flamma, ctx.currentTime, 0.3);
 
       anpassa(gl, duk, 0.75);
       gl.viewport(0, 0, duk.width, duk.height);

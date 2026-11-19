@@ -16,7 +16,9 @@ python -m http.server 5180
 
 - `index.html`, `style.css`, `app.js`: kalendern med dörrarna
 - `lib/gl.js`: WebGL2-hjälpare (en helskärmsshader per rum, plus egna pass där det behövs)
-- `lib/ljud.js`: ljudmotor, allt ljud skapas i koden
+- `lib/ljud.js`: ljudmotor för de ljud som räknas fram i koden
+- `lib/inspelning.js`: inspelade ljud. Bitar ur de rena avsnitten läggs efter varandra med mjuka övertoningar, och nivån räknas fram ur inspelningen så att även knäpp hålls långt under ljudvaktens gränser
+- `ljud/`: inspelningarna, alla CC0, med källor i `ljud/KALLOR.md`
 - `lib/vakt-processor.js`: ljudvakten, som sitter sist i ljudkedjan och stänger ljudet på några millisekunder om något plötsligt blir för starkt eller brusigt
 - `lib/portratt.js`: håller appen i porträttläge även när telefonen vrids
 - `lib/rorelse.js`, `lib/haptik.js`: lutning, skakningar och små haptiska klick
