@@ -34,7 +34,7 @@ const FORM_NYCKEL = 'andrum.stopta.former';
 const FN = 48;                // punkter i en sparad form
 const SKALA = 0.4;            // ljusen i fönstret är mindre än det som doppas
 const V0 = 0.1;               // den tunna halsen närmast pinnen klipps bort
-const SAX = [0.855, 0.35];   // saxens led, där den ligger på spisen
+const SAX = [0.835, 0.352];  // saxens led, där den ligger på spisen
 const MAXR = 0.05;            // tjockare än så växer ljuset knappt
 
 const FS = `#version 300 es
@@ -394,42 +394,66 @@ void main() {
     if (e < 1.0 && e > 0.55 && d.x * sx > -0.2) c = vec3(0.07, 0.07, 0.08) * (lys * 0.8 + 0.2);
   }
 
-  // ---- Saxen som ligger på spisen bredvid kastrullen ----
+  // ---- Saxen: en gammal sax helt i stål, som ligger på spisen bredvid kastrullen ----
   {
     vec2 led = vec2(${SAX[0]}, ${SAX[1]});
     // Saxens sken när ljuset är lagom tjockt
-    vec2 dg = (p - led - vec2(-0.01, 0.0)) / vec2(0.13, 0.07);
+    vec2 dg = (p - led - vec2(-0.005, 0.0)) / vec2(0.15, 0.06);
     c += vec3(1.0, 0.75, 0.45) * exp(-dot(dg, dg) * 2.0) * u_sax.y * (0.1 + 0.05 * sin(t * 2.2));
-    float oppen = u_sax.x;
-    vec2 rikt = normalize(vec2(-1.0, 0.1));
-    for (int k = 0; k < 2; k++) {
+    vec2 rikt = normalize(vec2(-1.0, 0.16));
+    // Slitet stål: matt, med mörkare fläckar av ålder
+    float patina = fbm3(p * 70.0);
+    vec3 stal = vec3(0.6, 0.61, 0.62) * (0.82 + 0.25 * fbm3(p * 160.0));
+    stal = mix(stal, vec3(0.36, 0.33, 0.3), smoothstep(0.55, 0.72, patina) * 0.6);
+    stal *= lys * 0.4 + 0.6;
+    for (int k = 1; k >= 0; k--) {
       float sg = k == 0 ? 1.0 : -1.0;
-      float a = sg * oppen * 0.5;
+      float a = sg * u_sax.x * 0.5;
       vec2 d = vec2(cos(a) * rikt.x - sin(a) * rikt.y, sin(a) * rikt.x + cos(a) * rikt.y);
-      // Bladet: blankt stål som smalnar av mot spetsen
-      vec2 ba = d * 0.105;
-      vec2 pa = p - led;
-      float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-      float dist = length(pa - ba * h);
-      float bredd = 0.0085 * (1.0 - h * 0.85) + 0.0008;
-      if (dist < bredd) {
-        float sida = dot(pa - ba * h, vec2(-d.y, d.x)) * sg;
-        vec3 stal = mix(vec3(0.42, 0.44, 0.47), vec3(0.85, 0.87, 0.9), smoothstep(-bredd, bredd, sida));
-        stal *= lys * 0.45 + 0.6;
-        c = mix(c, stal, smoothstep(bredd, bredd - px * 1.2, dist));
+      vec2 nn = vec2(-d.y, d.x);
+      vec2 pl = vec2(dot(p - led, d), dot(p - led, nn));
+      float tack = 0.0, form = 1.0;
+      // Bladet: långt och avsmalnande, med en rak rygg
+      const float BL = 0.088;
+      if (pl.x > -0.004 && pl.x < BL) {
+        float h = clamp(pl.x / BL, 0.0, 1.0);
+        float w = 0.0068 * pow(1.0 - h, 0.75) + 0.0006;
+        float mitt = sg * 0.0018 * (1.0 - h);
+        float dd = abs(pl.y - mitt);
+        float t2 = smoothstep(w, w - px * 1.2, dd);
+        if (t2 > tack) { tack = t2; form = dd / w; }
       }
-      // Handtaget: en ögla av orange plast på andra sidan leden
-      vec2 oc = led - d * 0.05 + vec2(-d.y, d.x) * sg * 0.018;
-      float r = length((p - oc) / vec2(1.0, 0.75));
-      float ogla = abs(r - 0.017);
-      if (ogla < 0.0065) {
-        vec3 plast = vec3(0.95, 0.42, 0.08) * (0.55 + 0.45 * smoothstep(0.0065, 0.0, ogla)) * (lys * 0.5 + 0.55);
-        c = mix(c, plast, smoothstep(0.0065, 0.0053, ogla));
+      // Skänkeln som böjer ut mot handtaget på andra sidan leden
+      if (pl.x < 0.0 && pl.x > -0.042) {
+        float h = clamp(-pl.x / 0.042, 0.0, 1.0);
+        float mitt = -sg * 0.011 * h * h * (3.0 - 2.0 * h);
+        float w = 0.0042 - 0.001 * h;
+        float dd = abs(pl.y - mitt);
+        float t2 = smoothstep(w, w - px * 1.2, dd);
+        if (t2 > tack) { tack = t2; form = dd / w; }
+      }
+      // Öglorna: en liten rund för tummen och en större, avlång för fingrarna
+      vec2 R = k == 0 ? vec2(0.013, 0.012) : vec2(0.026, 0.014);
+      vec2 oc = vec2(-0.04 - R.x * 0.85, -sg * (0.011 + R.y * 0.75));
+      float e = length((pl - oc) / R);
+      float tj = 0.0042;
+      float dd = abs(e - 1.0) * min(R.x, R.y);
+      float t2 = smoothstep(tj, tj - px * 1.2, dd);
+      if (t2 > tack) { tack = t2; form = dd / tj; }
+      if (tack > 0.0) {
+        // Rundad, sliten yta: ljusare mitt på och mörkare mot kanterna
+        vec3 f = stal * (0.62 + 0.45 * (1.0 - form * form));
+        f += vec3(1.0, 0.95, 0.88) * pow(max(0.0, 1.0 - form * 1.6), 3.0) * 0.18 * (lys.r * 0.4 + 0.6);
+        // Den undre halvan ligger lite i skugga under den övre
+        f *= k == 1 ? 0.82 : 1.0;
+        c = mix(c, f, tack);
       }
     }
-    // Leden
+    // Niten i leden
     float dl = length(p - led);
-    c = mix(c, vec3(0.7, 0.72, 0.75) * (lys * 0.45 + 0.6), smoothstep(0.0048, 0.0036, dl));
+    vec3 nit = vec3(0.68, 0.69, 0.7) * (lys * 0.4 + 0.6) * (0.75 + 0.35 * smoothstep(0.0045, 0.0, length(p - led - vec2(-0.0012, 0.0012))));
+    c = mix(c, nit, smoothstep(0.0046, 0.0036, dl));
+    c = mix(c, c * 0.6, smoothstep(0.0012, 0.0, abs(dl - 0.0042)) * 0.6);
   }
 
   // Mjuk vinjett
@@ -582,8 +606,8 @@ export default {
     let ledVisad = false;
 
     // ---------- Saxen ----------
-    let saxOppen = 0.16, saxTid = -1, saxSken = 0, saxTryck = null, redo = false, saxLedVisad = false;
-    const paSaxen = (wx, wy) => Math.hypot((wx - SAX[0]) / 1.5, wy - SAX[1]) < 0.065;
+    let saxOppen = 0.06, saxTid = -1, saxSken = 0, saxTryck = null, redo = false, saxLedVisad = false;
+    const paSaxen = (wx, wy) => Math.hypot((wx - SAX[0] - 0.01) / 1.8, wy - SAX[1]) < 0.06;
     function klipp() {
       if (fas !== 'doppa' || saxTid >= 0) return;
       saxTid = 0;
@@ -895,9 +919,9 @@ export default {
       // Saxen: bladen öppnas och klipper ihop
       if (saxTid >= 0) {
         saxTid += dt;
-        saxOppen = saxTid < 0.07 ? 0.16 + (saxTid / 0.07) * 0.34 : Math.max(0.0, 0.5 - ((saxTid - 0.07) / 0.08) * 0.5);
+        saxOppen = saxTid < 0.08 ? 0.06 + (saxTid / 0.08) * 0.44 : Math.max(0.0, 0.5 - ((saxTid - 0.08) / 0.08) * 0.5);
         if (saxTid > 0.6) { saxTid = -1; }
-      } else saxOppen += (0.16 - saxOppen) * Math.min(1, dt * 3);
+      } else saxOppen += (0.06 - saxOppen) * Math.min(1, dt * 3);
       saxSken += ((redo && fas === 'doppa' ? 1 : 0) - saxSken) * Math.min(1, dt * 1.5);
 
       // Ljusen i fönstret
