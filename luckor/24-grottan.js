@@ -307,13 +307,15 @@ export default {
     const eko = rum(3.5);
     const ekoUt = ctx.createGain(); ekoUt.gain.value = 0.4;
     eko.connect(ekoUt).connect(ut);
-    const vind = skapaVind(ctx, ut, { styrka: 0.15, ljus: 0.3 });
+    const vind = skapaVind(ctx, ut, { styrka: 0.07, ljus: 0.25 });
     l.kallor.push(...vind.kallor);
-    // Bäcken: en inspelning av en liten, lugn bäck, som också ekar svagt i grottan
+    // Bäcken: en inspelning av en liten, lugn bäck, som också ekar svagt i grottan.
+    // Inspelningen är tyst och har mycket sus i diskanten, så den filtreras mjukt
+    // ovanifrån och läggs lågt, som ett porl en bit bort.
     const backBuss = ctx.createGain();
     const backEko = ctx.createGain(); backEko.gain.value = 0.35;
     backBuss.connect(ut); backBuss.connect(backEko).connect(eko);
-    const backMatta = skapaMatta(ctx, backBuss, 'ljud/grotta-back.mp3', { niva: 0.04, bit: [8, 16], over: 3, hp: 110, tonhojd: 0.02 });
+    const backMatta = skapaMatta(ctx, backBuss, 'ljud/grotta-back.mp3', { niva: 0.02, bit: [8, 16], over: 3, hp: 150, lp: 3800, tonhojd: 0.02 });
     l.kallor.push(backMatta);
     let porl = null;
     backMatta.klar.catch(() => {
@@ -326,7 +328,7 @@ export default {
     const eldBuss = ctx.createGain();
     const eldEko = ctx.createGain(); eldEko.gain.value = 0.15;
     eldBuss.connect(ut); eldBuss.connect(eldEko).connect(eko);
-    const eldMatta = skapaMatta(ctx, eldBuss, 'ljud/grotta-eld.mp3', { niva: 0.03, bit: [5, 10], over: 2, hp: 150, tonhojd: 0.04 });
+    const eldMatta = skapaMatta(ctx, eldBuss, 'ljud/grotta-eld.mp3', { niva: 0.03, bit: [5, 10], over: 2, hp: 150, lp: 9000, tonhojd: 0.04 });
     l.kallor.push(eldMatta);
     let eldInspelning = null, eldFramraknad = false;
     eldMatta.klar.then((b) => { eldInspelning = b; }, () => { eldFramraknad = true; });
