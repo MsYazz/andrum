@@ -236,24 +236,41 @@ export default {
         storlek: slump(0.003, 0.0075), ljus: slump(0.45, 1), fall: slump(0.05, 0.11),
       };
     });
-    // Flödet: mjuka virvlar som klingar av, och ett svep som drar med sig vattnet
+    // Flödet: vattnet i kulan beskrivs med en strömfunktion, så att det aldrig kan
+    // tryckas ihop och aldrig strömmar in i glaset. Allt som rör sig i mitten måste
+    // vända och komma tillbaka längs kanten. Virvlarna klingar av, och kulans eget
+    // snurr är starkast en bit in och står nästan still mot glaset, som riktigt vatten.
     const virvlar = [];
     let svepX = 0, svepY = 0, rotation = 0;
     function virvla(x, y, styrka) {
       if (virvlar.length > 7) virvlar.shift();
       virvlar.push({ x, y, s: styrka, r: slump(0.25, 0.5) });
     }
-    function flode(x, y) {
-      let ux = svepX - y * rotation, uy = svepY + x * rotation;
-      for (const v of virvlar) {
-        const dx = x - v.x, dy = y - v.y;
-        const e = Math.exp(-(dx * dx + dy * dy) / (v.r * v.r)) * v.s / v.r;
-        ux += -dy * e; uy += dx * e;
+    function strom(x, y, medVirvlar) {
+      const r2 = x * x + y * y;
+      const vagg = Math.max(0, 1 - r2 * r2);
+      // Snurret: farten runt kulan blir 1,3·rotation·r·(1 - r⁴)
+      let p = -rotation * 0.65 * (r2 - r2 * r2 * r2 / 3);
+      // Svepet: en ström tvärs genom mitten som vänder tillbaka längs glaset
+      let q = svepX * y - svepY * x;
+      if (medVirvlar) {
+        for (const v of virvlar) {
+          const dx = x - v.x, dy = y - v.y;
+          q += v.s * v.r * 0.5 * Math.exp(-(dx * dx + dy * dy) / (v.r * v.r));
+        }
       }
-      return [ux, uy];
+      return p + q * vagg;
+    }
+    const E = 0.01;
+    const gauss = () => Math.sqrt(-2 * Math.log(Math.random() + 1e-9)) * Math.cos(Math.PI * 2 * Math.random());
+    function flode(x, y, medVirvlar = true) {
+      return [
+        (strom(x, y + E, medVirvlar) - strom(x, y - E, medVirvlar)) / (2 * E),
+        -(strom(x + E, y, medVirvlar) - strom(x - E, y, medVirvlar)) / (2 * E),
+      ];
     }
     function skaka(styrka, rx = 0, ry = 0) {
-      for (let i = 0; i < 3; i++) virvla(slump(-0.5, 0.5), slump(-0.6, 0.4), slump(-1.5, 1.5) * styrka);
+      for (let i = 0; i < 3; i++) virvla(slump(-0.7, 0.7), slump(-0.6, 0.6), slump(-1.5, 1.5) * styrka);
       rotation += slump(-1, 1) * styrka * 0.8;
       svepX += rx; svepY += ry;
       skvalp = Math.min(1, skvalp + styrka * 0.6);
@@ -261,7 +278,7 @@ export default {
       for (const f of flingor) {
         if (f.vila && Math.random() < styrka * 0.7) {
           f.vila = false;
-          f.vy = slump(0.8, 2.2) * styrka;
+          f.vy = slump(1.2, 3.3) * styrka;
           f.vx = slump(-0.9, 0.9) * styrka;
         }
       }
@@ -380,7 +397,14 @@ export default {
     // ---------- Ritslinga ----------
     const stoppa = slinga((tid, dt) => {
       const avkl = Math.exp(-dt / 3.5);
-      for (const v of virvlar) v.s *= avkl;
+      for (const v of virvlar) {
+        v.s *= avkl;
+        // Virvlarna följer med kulans snurr och svep och glider sakta runt
+        const [vx, vy] = flode(v.x, v.y, false);
+        v.x += vx * dt; v.y += vy * dt;
+        const vr = Math.hypot(v.x, v.y);
+        if (vr > 0.85) { v.x *= 0.85 / vr; v.y *= 0.85 / vr; }
+      }
       rotation *= Math.exp(-dt / 2.5);
       svepX *= Math.exp(-dt / 0.35); svepY *= Math.exp(-dt / 0.35);
       skvalp *= Math.exp(-dt * 1.5);
@@ -397,19 +421,24 @@ export default {
           }
           else return set(i, f);
         }
-        // Flingan följer vattnet och sjunker långsamt åt tyngdens håll
-        const k = Math.min(1, dt * 1.3);
-        f.vx += (ux + tyngd[0] * f.fall + Math.sin(tid * 0.7 + i) * 0.01 - f.vx) * k;
-        f.vy += (uy + tyngd[1] * f.fall + Math.cos(tid * 0.6 + i * 1.3) * 0.01 - f.vy) * k;
-        f.x += f.vx * dt; f.y += f.vy * dt;
-        // Glasväggen
+        // Flingan är så lätt att den bärs av vattnet nästan exakt. Det egna farten
+        // (från en skakning) bromsas snabbt av vattnet, och sedan sjunker den bara
+        // långsamt åt tyngdens håll. Vattnets fart tas i mittpunkten av steget, så att
+        // flingor som snurrar runt inte glider utåt av räknefel.
+        const broms = Math.exp(-dt / 0.5);
+        f.vx *= broms; f.vy *= broms;
+        const [mx, my] = flode(f.x + ux * dt * 0.5, f.y + uy * dt * 0.5);
+        // Där vattnet rör sig är det lite oroligt, och det blandar snön jämnt i kulan
+        const oro = Math.sqrt(2 * (0.001 + 0.04 * Math.min(1, flodesFart)) * Math.max(0, dt));
+        f.x += (mx + f.vx + tyngd[0] * f.fall + Math.sin(tid * 0.7 + i) * 0.01) * dt + gauss() * oro;
+        f.y += (my + f.vy + tyngd[1] * f.fall + Math.cos(tid * 0.6 + i * 1.3) * 0.01) * dt + gauss() * oro;
+        // Glasväggen: vattnet strömmar bara längs glaset, så flingan glider av
         const rr = Math.hypot(f.x, f.y);
         if (rr > 0.97) {
           const nx = f.x / rr, ny = f.y / rr;
           f.x = nx * 0.97; f.y = ny * 0.97;
-          // Flingan studsar mjukt mot glaset i stället för att fastna där
           const vn = f.vx * nx + f.vy * ny;
-          if (vn > 0) { f.vx -= vn * nx * 1.4; f.vy -= vn * ny * 1.4; }
+          if (vn > 0) { f.vx -= vn * nx; f.vy -= vn * ny; }
         }
         // Marken: flingan lägger sig när den når snön och vattnet är lugnt
         const gy = MARK(f.x);
