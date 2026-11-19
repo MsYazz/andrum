@@ -27,6 +27,10 @@ const YV = 0.6;               // stearinets yta
 const SIMS = 1.02;            // fönsterbänken
 const FONSTER_X = [0.29, 0.71, 0.21, 0.79, 0.13, 0.87, 0.42, 0.58];
 const NYCKEL = 'andrum.stopta';
+const FORM_NYCKEL = 'andrum.stopta.former';
+const FN = 48;                // punkter i en sparad form
+const SKALA = 0.4;            // ljusen i fönstret är mindre än det som doppas
+const V0 = 0.1;               // den tunna halsen närmast pinnen klipps bort
 
 const FS = `#version 300 es
 precision highp float;
@@ -42,6 +46,7 @@ uniform float u_alfa;       // det hängande ljusets synlighet
 uniform vec4 u_ring[4];     // x, ålder, styrka
 uniform vec3 u_dr[6];       // fallande droppar: x, y, radie
 uniform vec4 u_fonster[8];  // ljusen i fönstret: x, höjd, tid sedan tändning, synlig
+uniform sampler2D u_former; // varje fönsterljus form: r vänster, g höger, en rad per ljus
 uniform float u_varme;      // hur många ljus som brinner i fönstret
 uniform float u_rors;       // hur mycket stearinet rörs om
 ${BRUS}
@@ -152,23 +157,35 @@ void main() {
     if (L.w <= 0.0) continue;
     float bas = SIMS + 0.035;
     float fro = float(i);
-    // En liten ljusstake av mässing
-    vec2 dk = p - vec2(L.x, bas + 0.01);
-    float stake = step(abs(dk.y), 0.01) * step(abs(dk.x), 0.02 - dk.y * 0.6);
-    vec3 massing = vec3(0.6, 0.43, 0.18) * (lys * 0.7 + 0.25) * (0.75 + 0.5 * smoothstep(0.02, -0.01, dk.x));
-    c = mix(c, massing, stake * L.w);
-    // Ljuset
+    // Ljuset, med samma ojämna form som när det stöptes: halsen upptill, där lågan
+    // sitter, och den tjockare, droppiga änden nere i ljusstaken
     float topp = bas + 0.02 + L.y;
-    float rx = 0.0115;
     float lx = p.x - L.x;
-    if (p.y > bas + 0.018 && p.y < topp + 0.002) {
+    if (p.y > bas + 0.015 && p.y < topp + 0.003 && abs(lx) < 0.03) {
+      float v = mix(${V0.toFixed(2)}, 1.0, clamp((topp - p.y) / L.y, 0.0, 1.0));
+      vec2 fu = vec2(v * (1.0 - 1.0 / ${FN}.0) + 0.5 / ${FN}.0, (fro + 0.5) / 8.0);
+      vec4 fo = texture(u_former, fu);
+      float sida = smoothstep(-0.001, 0.001, lx);
+      float rx = mix(fo.r, fo.g, sida) * ${SKALA.toFixed(2)};
+      // Toppen är avrundad där lågan har smält en liten grop
+      rx *= mix(0.55, 1.0, sqrt(clamp((topp - p.y) / 0.005, 0.0, 1.0)));
       float kant = smoothstep(rx, rx - px * 1.5, abs(lx));
-      float nx = lx / rx;
-      vec3 lc = vec3(0.97, 0.95, 0.9) * (0.35 + 0.5 * (0.55 - 0.45 * nx)) * (lys * 0.45 + 0.4);
+      // Knölarna fångar ljuset
+      vec4 fa2 = texture(u_former, fu - vec2(1.5 / ${FN}.0, 0.0));
+      vec4 fb2 = texture(u_former, fu + vec2(1.5 / ${FN}.0, 0.0));
+      float lut = (mix(fb2.r, fb2.g, sida) - mix(fa2.r, fa2.g, sida)) * ${SKALA.toFixed(2)} / (3.0 / ${FN}.0 * L.y);
+      float nx = clamp(lx / max(rx, 1e-4), -1.0, 1.0);
+      float dif = 0.35 + 0.5 * (0.55 - 0.45 * nx) - clamp(lut, -0.6, 0.6) * 0.25;
+      vec3 lc = vec3(0.97, 0.95, 0.9) * dif * (lys * 0.45 + 0.4);
       float tand = clamp(L.z, 0.0, 1.0);
       lc += vec3(1.0, 0.72, 0.4) * smoothstep(topp - 0.04, topp, p.y) * 0.45 * tand;
       c = mix(c, lc, kant * L.w);
     }
+    // En liten ljusstake av mässing, framför ljusets nedersta del
+    vec2 dk = p - vec2(L.x, bas + 0.01);
+    float stake = step(abs(dk.y), 0.01) * step(abs(dk.x), 0.02 - dk.y * 0.6);
+    vec3 massing = vec3(0.6, 0.43, 0.18) * (lys * 0.7 + 0.25) * (0.75 + 0.5 * smoothstep(0.02, -0.01, dk.x));
+    c = mix(c, massing, stake * L.w);
     // Veken
     if (abs(lx) < 0.0009 && p.y > topp && p.y < topp + 0.006) c = mix(c, vec3(0.08, 0.06, 0.05), L.w);
     // Lågan och dess sken
@@ -383,7 +400,7 @@ export default {
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
     const u = platser(gl, prog, ['u_res', 'u_tid', 'u_synlig', 'u_prof', 'u_ljus', 'u_spets', 'u_alfa',
-      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors', 'u_snitt']);
+      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors', 'u_snitt', 'u_former']);
     gl.useProgram(prog);
     const tom = gl.createVertexArray();
 
@@ -413,10 +430,31 @@ export default {
     let antal = 0;
     try { antal = Math.max(0, Math.floor(Number(localStorage.getItem(NYCKEL)) || 0)); } catch {}
     // Ljusen i fönstret: höjden varierar lite, som på riktiga doppade ljus
-    const fonster = FONSTER_X.map((x, i) => ({
-      x, hojd: 0.13 + 0.035 * ((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1,
-      tand: i < antal ? 10 : -1, syns: i < antal ? 1 : 0,
-    }));
+    // Formerna på ljusen hon har gjort sparas, så att de står i fönstret precis som de blev
+    let former = [];
+    try { former = JSON.parse(localStorage.getItem(FORM_NYCKEL) || '[]'); } catch {}
+    if (!Array.isArray(former)) former = [];
+    // Ett ljus utan sparad form (gjort innan formerna sparades) får en påhittad i samma stil
+    function pahittadForm(fro) {
+      const slp = (k) => ((Math.sin(fro * 91.7 + k * 12.9898) * 43758.5453) % 1 + 1) % 1;
+      const sidor = [0, 1].map((s) => {
+        const f = 4 + 4 * slp(s + 1), a = 6.3 * slp(s + 3), kv = 0.2 + 0.7 * slp(s + 5), kh = 0.08 + 0.18 * slp(s + 7);
+        return Array.from({ length: FN }, (_, j) => {
+          const v = j / (FN - 1);
+          const bas = 0.004 + 0.02 * mjuk(0, 0.32, v) + 0.007 * v;
+          return bas * (1 + 0.06 * Math.sin(v * f + a) + kh * Math.exp(-((v - kv) ** 2) / 0.006));
+        });
+      });
+      return { l: sidor[0], r: sidor[1], spets: 0.015 + 0.015 * slp(9) };
+    }
+    const formHojd = (f) => (1 - V0) * LANGD * SKALA + (f.spets || 0) * SKALA;
+    const fonster = FONSTER_X.map((x, i) => {
+      if (i < antal && !former[i]) former[i] = pahittadForm(i);
+      return {
+        x, hojd: former[i] ? formHojd(former[i]) : 0.15,
+        tand: i < antal ? 10 : -1, syns: i < antal ? 1 : 0,
+      };
+    });
 
     function nollstall() {
       for (let s = 0; s < 2; s++) { fast[s].fill(VEKE); film[s].fill(0); }
@@ -531,6 +569,42 @@ export default {
     const data = new Float32Array(N * 4);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, N, 1, 0, gl.RGBA, gl.FLOAT, data);
     gl.uniform1i(u.u_prof, 0);
+    const formTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, formTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const formData = new Float32Array(FN * 8 * 4);
+    function laddaFormer() {
+      formData.fill(0);
+      former.forEach((f, rad) => {
+        if (!f || rad >= 8) return;
+        for (let j = 0; j < FN; j++) {
+          formData[(rad * FN + j) * 4] = f.l[j] || 0;
+          formData[(rad * FN + j) * 4 + 1] = f.r[j] || 0;
+        }
+      });
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, formTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, FN, 8, 0, gl.RGBA, gl.FLOAT, formData);
+      gl.activeTexture(gl.TEXTURE0);
+    }
+    laddaFormer();
+    gl.uniform1i(u.u_former, 1);
+    // Det färdiga ljusets form, nedräknad till FN punkter per sida
+    function sparaForm(plats) {
+      const ta = (s) => Array.from({ length: FN }, (_, j) => {
+        const x = (j / (FN - 1)) * (N - 1), i = Math.floor(x), t = x - i;
+        const a = data[i * 4 + s], b = data[Math.min(N - 1, i + 1) * 4 + s];
+        return Math.round((a + (b - a) * t) * 1e5) / 1e5;
+      });
+      former[plats] = { l: ta(0), r: ta(1), spets: Math.round(spets * 1e4) / 1e4 };
+      try { localStorage.setItem(FORM_NYCKEL, JSON.stringify(former)); } catch {}
+      laddaFormer();
+      fonster[plats].hojd = formHojd(former[plats]);
+    }
     const ringData = new Float32Array(16);
     const drData = new Float32Array(18);
     const fData = new Float32Array(32);
@@ -716,7 +790,9 @@ export default {
         mal.y = pinne.y + 0.12 * dt;
         alfa = 1 - mjuk(1.0, 2.4, fasTid);
         if (fasTid > 1.6 && fasTid - dt <= 1.6) {
-          const L = fonster[antal % FONSTER_X.length];
+          const plats = antal % FONSTER_X.length;
+          sparaForm(plats);
+          const L = fonster[plats];
           L.syns = 1; L.tand = 0;
           antal++;
           try { localStorage.setItem(NYCKEL, String(antal)); } catch {}
