@@ -5,6 +5,12 @@
 // sanden rasar och rinner under själva vändningen.
 // Sanden är en cellautomat med ungefär ett korn per pixel. Fallande korn får fart, så
 // strålen blir sammanhängande, och lite slump i hur kornen glider gör flödet levande.
+//
+// Ljudet byggs av korn (lib/korn-processor.js): varje korn som landar blir ett litet,
+// mjukt knäpp. Simuleringen berättar hur många som landar, hur långt de har fallit
+// och om de träffar glaset eller sanden, och hur mycket som rasar nedför högen. Den
+// nedre kupan klingar svagt och ihåligt, och klangen stiger när den fylls, som när
+// man fyller en flaska.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
 import { brusKalla, rum } from '../lib/ljud.js';
@@ -177,6 +183,8 @@ export default {
 
     let stampel = 1;
     let genom = 0;
+    let nedslag = 0, nedslagFart = 0, nedslagGlas = 0, glid = 0;
+    let tarEmot = true;   // true när den nedre halvan av rutnätet är kupan som tar emot sanden
 
     // Flytta ett korn. k0 och fr väljer huvudriktningen nära tyngdkraften.
     function korn(x, y, k0, fr) {
@@ -204,6 +212,13 @@ export default {
         if ((y < MITT) !== (cy < MITT)) genom++;
         return;
       }
+      // Ett korn som föll och nu har stannat har landat: på glaset eller på sanden
+      if (fart[i] >= 3 && (y >= MITT) === tarEmot) {
+        nedslag++;
+        nedslagFart += fart[i];
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= GW || ny < 0 || ny >= GH || !mask[ny * GW + nx]) nedslagGlas++;
+      }
       fart[i] = 0;
       if (Math.random() < FRIKTION) return;
       // Stoppat: glid åt något annat håll som går nedförsbacke räknat mot tyngdkraften.
@@ -224,6 +239,7 @@ export default {
           sand[nj] = k; sand[i] = 0;
           flyttad[nj] = stampel;
           if ((y < MITT) !== (ny < MITT)) genom++;
+          if ((y >= MITT) === tarEmot) glid++;
           return;
         }
       }
@@ -254,6 +270,7 @@ export default {
     // Ett steg för hela sanden. Kornen längst fram i tyngdkraftens riktning flyttas först.
     function steg(gx, gy) {
       stampel++;
+      tarEmot = gy > 0;
       nedforsbacke(gx, gy);
       let a = Math.atan2(gy, gx) / (Math.PI / 4);
       if (a < 0) a += 8;
@@ -290,21 +307,38 @@ export default {
     const ekoUt = ctx.createGain();
     ekoUt.gain.value = 0.25;
     eko.connect(ekoUt).connect(ut);
-    const strale = brusKalla('korn');
-    const straleF = ctx.createBiquadFilter();
-    straleF.type = 'bandpass'; straleF.frequency.value = 4200; straleF.Q.value = 1.1;
-    const straleG = ctx.createGain(); straleG.gain.value = 0;
-    strale.connect(straleF).connect(straleG).connect(ut);
-    const hog = brusKalla('rosa');
-    const hogF = ctx.createBiquadFilter();
-    hogF.type = 'bandpass'; hogF.frequency.value = 1700; hogF.Q.value = 0.8;
-    const hogG = ctx.createGain(); hogG.gain.value = 0;
-    hog.connect(hogF).connect(hogG).connect(ut);
+    // Kornen, och den nedre kupans ihåliga klang
+    const kupa = ctx.createBiquadFilter();
+    kupa.type = 'bandpass'; kupa.frequency.value = 800; kupa.Q.value = 1.8;
+    const kupaG = ctx.createGain(); kupaG.gain.value = 0.45;
+    kupa.connect(kupaG).connect(ut);
+    const kupaEko = ctx.createGain(); kupaEko.gain.value = 0.5;
+    kupaG.connect(kupaEko).connect(eko);
+    let kornNod = null;
+    let reserv = null;
+    (async () => {
+      try {
+        await ctx.audioWorklet.addModule(new URL('../lib/korn-processor.js', import.meta.url));
+        kornNod = new AudioWorkletNode(ctx, 'andrum-korn', { outputChannelCount: [2] });
+        kornNod.connect(ut);
+        kornNod.connect(kupa);
+        l.kallor.push({ stop: () => { try { kornNod.disconnect(); } catch {} } });
+      } catch {
+        // Utan ljudtråd: det gamla, enklare suset, men svagare
+        const strale = brusKalla('korn');
+        const straleF = ctx.createBiquadFilter();
+        straleF.type = 'bandpass'; straleF.frequency.value = 3600; straleF.Q.value = 0.7;
+        const straleG = ctx.createGain(); straleG.gain.value = 0;
+        strale.connect(straleF).connect(straleG).connect(ut);
+        l.kallor.push(strale);
+        reserv = straleG;
+      }
+    })();
     const rumston = brusKalla('rosa');
     const rumF = ctx.createBiquadFilter(); rumF.type = 'lowpass'; rumF.frequency.value = 220;
-    const rumG = ctx.createGain(); rumG.gain.value = 0.02;
+    const rumG = ctx.createGain(); rumG.gain.value = 0.015;
     rumston.connect(rumF).connect(rumG).connect(ut);
-    l.kallor.push(strale, hog, rumston);
+    l.kallor.push(rumston);
 
     function knack(nar) {
       brusstot(ctx, ut, { frekvens: 320, q: 2, styrka: 0.45, langd: 0.012, nar });
@@ -338,6 +372,7 @@ export default {
     // ---------- Ritslinga ----------
     let stegAck = 0;
     let flode = 0;
+    let ljusN = 0.5, glasN = 0, rasN = 0, tathetN = 0, fyllN = 0.5, fyllTid = 0;
     const stoppa = slinga((tid, dt) => {
       if (vandning) {
         if (vandning.start === null) vandning.start = tid;
@@ -359,6 +394,7 @@ export default {
       const ly = -varldG.x * s + varldG.y * c;
 
       genom = 0;
+      nedslag = 0; nedslagFart = 0; nedslagGlas = 0; glid = 0;
       stegAck += dt * 120;
       let n = 0;
       while (stegAck >= 1 && n < 6) { steg(lx, -ly); stegAck -= 1; n++; }
@@ -367,8 +403,39 @@ export default {
 
       const t = ctx.currentTime;
       const f = Math.min(1, flode);
-      straleG.gain.setTargetAtTime(0.07 * f, t, 0.15);
-      hogG.gain.setTargetAtTime(0.035 * f, t, 0.2);
+      const ds = Math.max(dt, 1e-3);
+      // Hur långt kornen har fallit, och hur många som träffar glaset
+      if (nedslag > 0) {
+        ljusN += (Math.min(1, Math.max(0, (nedslagFart / nedslag - 3) / 4)) - ljusN) * 0.1;
+        glasN += (nedslagGlas / nedslag - glasN) * 0.1;
+      }
+      // Korn som landar per sekund, och korn som rasar nedför högen
+      tathetN += (Math.min(6500, nedslag / ds * 2.5) - tathetN) * 0.35;
+      rasN += (Math.min(1500, glid / ds * 0.12) - rasN) * 0.35;
+      // Hur full den nedre kupan är, alltså den som kornen faller ner i
+      fyllTid -= dt;
+      if (fyllTid <= 0) {
+        fyllTid = 0.25;
+        const nedreHalvan = -ly > 0;
+        let i = 0, alla = 0;
+        for (let p = 0; p < N; p++) {
+          if (!sand[p]) continue;
+          alla++;
+          if (((p / GW) | 0) >= MITT === nedreHalvan) i++;
+        }
+        fyllN = alla ? i / alla : 0.5;
+      }
+      if (kornNod) {
+        const P = kornNod.parameters;
+        P.get('tathet').setTargetAtTime(tathetN, t, 0.05);
+        P.get('ljus').setTargetAtTime(ljusN, t, 0.1);
+        P.get('glas').setTargetAtTime(glasN, t, 0.1);
+        P.get('ras').setTargetAtTime(rasN, t, 0.08);
+      } else if (reserv) {
+        reserv.gain.setTargetAtTime(0.03 * f, t, 0.15);
+      }
+      // Kupan klingar högre ju mindre luft som är kvar i den
+      kupa.frequency.setTargetAtTime(650 / Math.sqrt(Math.max(0.18, 1 - fyllN)), t, 0.5);
 
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, GW, GH, gl.RED, gl.UNSIGNED_BYTE, sand);
       const dpr = anpassa(gl, duk, 0.75);
