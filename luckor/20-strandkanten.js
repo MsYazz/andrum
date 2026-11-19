@@ -28,6 +28,8 @@ uniform float u_synlig;
 uniform vec2 u_pp[5];       // pinnen: från spetsen och bakåt mot handen
 uniform vec4 u_kvist;       // en liten avbruten sidokvist: från, till
 uniform float u_pa;         // hur synlig pinnen är
+uniform float u_lyft;       // 1 när kvisten svävar över sanden, 0 när spetsen ristar
+uniform vec4 u_avtryck;     // fingeravtrycket där man håller: x, y, riktning, synlighet
 ${BRUS}
 
 // Avstånd till en sträcka, och var längs sträckan närmaste punkten ligger
@@ -136,12 +138,12 @@ void main() {
     float skugga = 0.0;
     for (int i = 0; i < 4; i++) {
       float h0 = float(i) / 4.0, h1 = float(i + 1) / 4.0;
-      vec2 a = u_pp[i] + sDir * 0.07 * h0 * h0, b = u_pp[i + 1] + sDir * 0.07 * h1 * h1;
+      vec2 a = u_pp[i] + sDir * (0.025 * u_lyft + 0.07 * h0 * h0), b = u_pp[i + 1] + sDir * (0.025 * u_lyft + 0.07 * h1 * h1);
       float hh, sd;
       float d = strDist(p, a, b, hh, sd);
       float s0 = (float(i) + hh) / 4.0;
       float r = pinnRadie(s0);
-      float sudd = 0.002 + 0.02 * s0;
+      float sudd = 0.002 + 0.02 * s0 + 0.006 * u_lyft;
       skugga = max(skugga, smoothstep(r + sudd, r - sudd * 0.5, d) * (0.42 - 0.22 * s0));
     }
     c *= 1.0 - skugga * u_pa;
@@ -176,6 +178,18 @@ void main() {
       tra += vec3(1.0, 0.97, 0.9) * pow(max(dot(reflect(-L, nn), vec3(0.0, 0.0, 1.0)), 0.0), 12.0) * 0.12;
       c = mix(c, tra, tack * u_pa);
     }
+    // Ett diskret fingeravtryck där man håller i kvisten, tills hon har tagit i den
+    if (u_avtryck.w > 0.0) {
+      vec2 q = p - u_avtryck.xy;
+      float ca = cos(u_avtryck.z), sa = sin(u_avtryck.z);
+      q = vec2(ca * q.x + sa * q.y, -sa * q.x + ca * q.y);
+      float e = length(q / vec2(0.034, 0.025));
+      float linjer = smoothstep(0.34, 0.0, abs(fract(e * 4.5 + 0.25 * fbm(q * 220.0)) - 0.5));
+      float yta = smoothstep(1.0, 0.7, e);
+      // En svag, matt fläck och tunna linjer, som ett avtryck i damm
+      c = mix(c, c * 0.84 + vec3(0.02), yta * 0.6 * u_avtryck.w);
+      c = mix(c, c * 0.6 + vec3(0.03), linjer * yta * 0.7 * u_avtryck.w);
+    }
   }
 
   c *= 1.0 - 0.25 * pow(length(uv - 0.5) * 1.3, 2.5);
@@ -190,7 +204,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_sand', 'u_rut', 'u_vag', 'u_tid', 'u_synlig', 'u_pp', 'u_kvist', 'u_pa']);
+    const u = platser(gl, prog, ['u_res', 'u_sand', 'u_rut', 'u_vag', 'u_tid', 'u_synlig', 'u_pp', 'u_kvist', 'u_pa', 'u_lyft', 'u_avtryck']);
 
     // ---------- Sanden ----------
     const N = SW * SH;
@@ -276,65 +290,73 @@ export default {
     vagBank.klar.then(() => { vagInspelad = true; }, () => {});
 
     // ---------- Fingret och pinnen ----------
-    // Hon håller i en krokig pinne. Fingret ligger på pinnen en bit bakom spetsen, och
-    // det är spetsen som ristar i sanden, så att fingret inte skymmer det hon skriver.
-    // Pinnens form: vinklar och längder för varje del, från spetsen bakåt mot handen
+    // En krokig kvist svävar en bit över sanden. Ett diskret fingeravtryck visar var man
+    // håller i den, strax ovanför den lilla sidokvisten. Rör hon vid skärmen glider
+    // kvisten in under fingret och sänks ner, och det är spetsen, en bit framför
+    // fingret, som ristar i sanden. När hon släpper lyfter kvisten och svävar kvar.
+    // Kvistens form: vinklar och längder för varje del, från spetsen bakåt mot handen
     const FORM = [[0, 0.12], [0.2, 0.15], [-0.14, 0.14], [0.1, 0.13]];
-    const GREPP = 0.1;                 // från spetsen till fingret, längs pinnen
+    const GREPP = 0.2;                // från spetsen till fingret, längs kvisten
     const BAS_VINKEL = Math.atan2(-0.89, 0.45);
-    const pinne = { x: 0.5, y: 1, syns: 0, mal: 0, luta: 0 };
-    const pp = new Float32Array(10), kvistData = new Float32Array(4);
+    const asp = () => duk.clientHeight / duk.clientWidth;
+    // Greppets läge (där fingret håller), och var den ska vara
+    const pinne = { x: 0.6, y: 0.3 * asp(), mx: 0.6, my: 0.3 * asp(), nere: false, lyft: 1, luta: 0, avtryck: 1, greppat: false };
+    const pp = new Float32Array(10), kvistData = new Float32Array(4), avtryckData = new Float32Array(4);
     let forra = null;
     let skrapFart = 0;
-    const asp = () => duk.clientHeight / duk.clientWidth;
-    // Spetsen i sandens rutnät
-    function spetsRut() {
-      const vinkel = BAS_VINKEL + pinne.luta;
-      const tx = pinne.x - Math.cos(vinkel) * GREPP, ty = pinne.y - Math.sin(vinkel) * GREPP;
-      return [Math.max(0, Math.min(1, tx)) * SW, ((asp() - ty) / asp()) * SH];
-    }
-    function flytta(x, y) {
-      const nx = x / duk.clientWidth, ny = (duk.clientHeight - y) / duk.clientWidth;
-      pinne.luta += ((Math.max(-1, Math.min(1, (nx - pinne.x) * 30)) * 0.18) - pinne.luta) * 0.3;
-      pinne.x = nx; pinne.y = ny;
-    }
-    fingrar(duk, {
-      ner: (x, y) => {
-        flytta(x, y);
-        pinne.luta = 0;
-        pinne.mal = 1;
-        const [gx, gy] = spetsRut(); forra = [gx, gy]; grav(gx, gy);
-      },
-      drag: (x, y) => {
-        flytta(x, y);
-        const [gx, gy] = spetsRut();
-        if (forra) {
-          const d = Math.hypot(gx - forra[0], gy - forra[1]);
-          const n = Math.ceil(d / 0.6);
-          for (let k = 1; k <= n; k++) grav(forra[0] + (gx - forra[0]) * k / n, forra[1] + (gy - forra[1]) * k / n);
-          skrapFart = Math.min(1, skrapFart + d * 0.04);
-        }
-        forra = [gx, gy];
-      },
-      upp: () => { forra = null; pinne.mal = 0; },
-    });
+    // Räknar ut kvistens punkter så att greppet hamnar där pinne.x, pinne.y är
     function pinnPunkter() {
       const vinkel = BAS_VINKEL + pinne.luta;
-      let x = pinne.x - Math.cos(vinkel) * GREPP, y = pinne.y - Math.sin(vinkel) * GREPP;
-      pp[0] = x; pp[1] = y;
-      let v = vinkel;
+      const lok = [[0, 0]];
+      let x = 0, y = 0, v = vinkel, kvist = null;
       FORM.forEach(([dv, l], i) => {
         v += dv;
         x += Math.cos(v) * l; y += Math.sin(v) * l;
-        pp[(i + 1) * 2] = x; pp[(i + 1) * 2 + 1] = y;
-        if (i === 1) {
-          // Den avbrutna sidokvisten sitter vid andra böjen
-          const kv = v - 0.9;
-          kvistData[0] = x; kvistData[1] = y;
-          kvistData[2] = x + Math.cos(kv) * 0.04; kvistData[3] = y + Math.sin(kv) * 0.04;
-        }
+        lok.push([x, y]);
+        // Sidokvisten sitter vid andra böjen och grenar sig framåt, mot spetsen
+        if (i === 1) { const kv = v + Math.PI + 0.55; kvist = [x, y, x + Math.cos(kv) * 0.04, y + Math.sin(kv) * 0.04]; }
       });
+      // Greppet ligger GREPP in längs kvisten från spetsen
+      let kvar = GREPP, gx = 0, gy = 0, gv = vinkel;
+      for (let i = 0; i < FORM.length; i++) {
+        const l = FORM[i][1];
+        if (kvar <= l) {
+          const t = kvar / l;
+          gx = lok[i][0] + (lok[i + 1][0] - lok[i][0]) * t; gy = lok[i][1] + (lok[i + 1][1] - lok[i][1]) * t;
+          gv = Math.atan2(lok[i + 1][1] - lok[i][1], lok[i + 1][0] - lok[i][0]);
+          break;
+        }
+        kvar -= l;
+      }
+      const dx = pinne.x - gx, dy = pinne.y - gy;
+      lok.forEach(([a, b], i) => { pp[i * 2] = a + dx; pp[i * 2 + 1] = b + dy; });
+      kvistData[0] = kvist[0] + dx; kvistData[1] = kvist[1] + dy; kvistData[2] = kvist[2] + dx; kvistData[3] = kvist[3] + dy;
+      avtryckData[0] = pinne.x; avtryckData[1] = pinne.y; avtryckData[2] = gv;
     }
+    // Spetsen i sandens rutnät
+    function spetsRut() {
+      pinnPunkter();
+      return [Math.max(0, Math.min(1, pp[0])) * SW, ((asp() - pp[1]) / asp()) * SH];
+    }
+    const iHanden = () => Math.hypot(pinne.x - pinne.mx, pinne.y - pinne.my) < 0.012 && pinne.lyft < 0.15;
+    function ristaTill() {
+      const [gx, gy] = spetsRut();
+      if (forra) {
+        const d = Math.hypot(gx - forra[0], gy - forra[1]);
+        // Står spetsen still gräver den inte djupare
+        if (d < 0.3) return;
+        const n = Math.ceil(d / 0.6);
+        for (let k = 1; k <= n; k++) grav(forra[0] + (gx - forra[0]) * k / n, forra[1] + (gy - forra[1]) * k / n);
+        skrapFart = Math.min(1, skrapFart + d * 0.04);
+      } else grav(gx, gy);
+      forra = [gx, gy];
+    }
+    const fingerTill = (x, y) => { pinne.mx = x / duk.clientWidth; pinne.my = (duk.clientHeight - y) / duk.clientWidth; };
+    fingrar(duk, {
+      ner: (x, y) => { fingerTill(x, y); pinne.nere = true; pinne.greppat = true; forra = null; },
+      drag: (x, y) => { fingerTill(x, y); },
+      upp: () => { pinne.nere = false; forra = null; },
+    });
 
     const tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -396,12 +418,24 @@ export default {
       gl.uniform3f(u.u_vag, vagLage, vag.fro, vatten);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
-      pinne.syns += (pinne.mal - pinne.syns) * Math.min(1, dt * (pinne.mal ? 14 : 7));
-      if (!forra) pinne.luta *= Math.exp(-dt * 4);
+      // Kvisten glider snabbt in under fingret, lutar lite efter i sidled och sänks
+      // ner till sanden. Den ristar först när den ligger rätt i handen.
+      if (pinne.nere) {
+        const fx = pinne.x;
+        const k = Math.min(1, dt * 22);
+        pinne.x += (pinne.mx - pinne.x) * k; pinne.y += (pinne.my - pinne.y) * k;
+        pinne.luta += (Math.max(-0.18, Math.min(0.18, (pinne.x - fx) / Math.max(dt, 1e-3) * 0.12)) - pinne.luta) * Math.min(1, dt * 8);
+      } else pinne.luta *= Math.exp(-dt * 3);
+      pinne.lyft += ((pinne.nere ? 0 : 1) - pinne.lyft) * Math.min(1, dt * (pinne.nere ? 12 : 5));
+      if (pinne.nere && iHanden()) ristaTill(); else forra = null;
+      if (pinne.greppat) pinne.avtryck = Math.max(0, pinne.avtryck - dt / 1.2);
       pinnPunkter();
+      avtryckData[3] = pinne.avtryck;
       gl.uniform2fv(u.u_pp, pp);
       gl.uniform4fv(u.u_kvist, kvistData);
-      gl.uniform1f(u.u_pa, pinne.syns);
+      gl.uniform1f(u.u_pa, 1);
+      gl.uniform1f(u.u_lyft, pinne.lyft);
+      gl.uniform4fv(u.u_avtryck, avtryckData);
       ritaHelskarm(gl);
     });
 
