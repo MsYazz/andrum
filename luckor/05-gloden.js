@@ -202,7 +202,7 @@ export default {
     // växer när hon blåser på elden. Går den inte att ladda räknas suset fram som förut.
     const branBuss = ctx.createGain(); branBuss.gain.value = 0.15;
     branBuss.connect(ut);
-    const branMatta = skapaMatta(ctx, branBuss, 'ljud/glod-brus.mp3', { avsnitt: [[0.6, 27.6]], niva: 0.04, bit: [6, 12], over: 2.5, hp: 50, tonhojd: 0.03 });
+    const branMatta = skapaMatta(ctx, branBuss, 'ljud/glod-brus.mp3', { avsnitt: [[0.6, 27.6]], niva: 0.05, bit: [6, 12], over: 2.5, hp: 200, tonhojd: 0.03 });
     l.kallor.push(branMatta);
     let branInspelad = false;
     branMatta.klar.then(() => { branInspelad = true; }, () => {});
