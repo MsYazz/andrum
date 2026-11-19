@@ -147,10 +147,10 @@ const RUM = {
     ladda: () => import('./luckor/22-snoglob.js'),
   },
   23: {
-    namn: 'Degen',
-    farg: '#f2c56b',
-    motiv: '<path d="M4 15c0-4 3.5-7 8-7s8 3 8 7c0 2-3.5 3.5-8 3.5S4 17 4 15z"/><circle cx="10" cy="13" r="1.3"/><circle cx="14.2" cy="12" r="1.1"/><path d="M3 21h18"/>',
-    ladda: () => import('./luckor/23-degen.js'),
+    namn: 'Ljusstöpningen',
+    farg: '#f6e2b8',
+    motiv: '<path d="M6 3h12"/><path d="M12 3v3"/><path d="M10.6 6h2.8l.4 9h-3.6z" class="fylld"/><path d="M12 15v1.6"/><path d="M5 17.5c0-.8 3-1.5 7-1.5s7 .7 7 1.5V20c0 .8-3 1.5-7 1.5S5 20.8 5 20z"/>',
+    ladda: () => import('./luckor/23-ljusstopningen.js'),
   },
   24: {
     namn: 'Grottan',

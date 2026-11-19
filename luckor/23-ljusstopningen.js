@@ -1,0 +1,654 @@
+// Lucka 23: Ljusstöpningen
+// Dan före dopparedan, i köket på kvällen. På vedspisen står en emaljerad kastrull med
+// smält stearin, och ovanför hänger en bomullsveke från en pinne. Hon drar veken ner i
+// stearinet och släpper, så lyfts den sakta upp igen. Varje doppning lägger ett nytt
+// lager, och ljuset växer. Nydoppat är stearinet varmt, blankt och gulaktigt, och det
+// svalnar till matt vitt. Doppar hon medan det fortfarande är varmt fastnar mindre, så
+// det lönar sig att vänta lite mellan doppen. Det kan aldrig bli fel, bara långsammare.
+//
+// När ljuset är färdigt tänds det och ställs i fönstret, och en ny veke hänger där.
+// Ljusen hon har gjort står kvar i fönstret och lyser upp köket nästa gång också.
+
+import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
+import { brusKalla, rum, klocka } from '../lib/ljud.js';
+import { BRUS } from '../lib/glsl.js';
+import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning, bubbla, brusstot } from '../lib/scen.js';
+
+const N = 96;                 // punkter längs ljuset
+const LANGD = 0.42;           // ljusets längd, i skärmbredder
+const VEKE = 0.0016;          // vekens tjocklek
+const LAGER = 0.0017;         // ett svalt dopp
+const KLAR = 0.03;            // ljusets färdiga radie
+const KYL = 2.6;              // sekunder för stearinet att svalna
+const YV = 0.6;               // stearinets yta
+const SIMS = 1.02;            // fönsterbänken
+const FONSTER_X = [0.29, 0.71, 0.21, 0.79, 0.13, 0.87, 0.42, 0.58];
+const NYCKEL = 'andrum.stopta';
+
+const FS = `#version 300 es
+precision highp float;
+out vec4 frag;
+uniform vec2 u_res;
+uniform float u_tid;
+uniform float u_synlig;
+uniform sampler2D u_prof;   // r: radie, g: värme
+uniform vec4 u_ljus;        // x, överkant, längd, vinkel
+uniform vec3 u_spets;       // stelnad spets, droppens radie, droppens värme
+uniform float u_alfa;       // det hängande ljusets synlighet
+uniform vec4 u_ring[4];     // x, ålder, styrka
+uniform vec3 u_dr[6];       // fallande droppar: x, y, radie
+uniform vec4 u_fonster[8];  // ljusen i fönstret: x, höjd, tid sedan tändning, synlig
+uniform float u_varme;      // hur många ljus som brinner i fönstret
+uniform float u_rors;       // hur mycket stearinet rörs om
+${BRUS}
+
+const float YV = ${YV.toFixed(3)};
+const float SIMS = ${SIMS.toFixed(3)};
+
+// En levande låga: rund nertill, spetsig upptill, med blå bas och vit kärna
+vec4 laga(vec2 p, vec2 bas, float t, float fro, float styrka) {
+  float fl = brus(vec2(t * 3.1 + fro * 7.3, fro));
+  float fl2 = brus(vec2(t * 7.7 + fro * 3.1, fro + 5.0));
+  vec2 q = p - bas;
+  float h = 0.02 * styrka * (0.88 + 0.22 * fl);
+  float w = 0.0058 * styrka;
+  q.x -= (fl2 - 0.5) * 0.0035 * clamp(q.y / max(h, 1e-4), 0.0, 1.0);
+  float yy = q.y - h * 0.32;
+  float sy = yy > 0.0 ? yy / (h * 0.68) : yy / (h * 0.32);
+  float sx = q.x / (w * (1.0 - 0.78 * clamp(sy, 0.0, 1.0)));
+  float d = length(vec2(sx, sy));
+  float kropp = smoothstep(1.0, 0.72, d);
+  float karna = smoothstep(0.65, 0.1, length(vec2(sx * 1.4, sy + 0.3)));
+  vec3 f = mix(vec3(1.0, 0.42, 0.08), vec3(1.0, 0.82, 0.45), smoothstep(0.95, 0.35, d));
+  f = mix(f, vec3(1.0, 0.97, 0.88), karna);
+  f = mix(f, vec3(0.3, 0.42, 1.0), smoothstep(-0.3, -0.95, sy) * 0.55);
+  return vec4(f * 1.4, kropp * styrka);
+}
+
+// Ljuset i rummet: spisens glöd nerifrån och ljusen i fönstret
+vec3 rumsljus(vec2 p, float t, float H) {
+  float flim = 0.85 + 0.15 * brus(vec2(t * 2.3, 1.7));
+  vec3 lys = vec3(0.2, 0.18, 0.2) + vec3(1.0, 0.5, 0.24) * exp(-max(p.y - 0.25, 0.0) * 2.6) * 0.75 * flim;
+  // En varm lampa ovanför arbetsbänken, utanför bild
+  vec2 dl = (p - vec2(0.5, H + 0.15)) * vec2(1.0, 0.55);
+  lys += vec3(1.0, 0.88, 0.72) * 0.75 / (1.0 + dot(dl, dl) * 2.2);
+  for (int i = 0; i < 8; i++) {
+    vec4 L = u_fonster[i];
+    if (L.w <= 0.0 || L.z <= 0.0) continue;
+    vec2 d = p - vec2(L.x, SIMS + 0.06 + L.y);
+    lys += vec3(1.0, 0.62, 0.3) * L.w * min(1.0, L.z) * 0.004 / (0.012 + dot(d, d));
+  }
+  return lys;
+}
+
+void main() {
+  float s = u_res.x;
+  vec2 p = gl_FragCoord.xy / s;
+  float H = u_res.y / s;
+  float t = u_tid;
+  float px = 1.0 / s;
+  vec3 lys = rumsljus(p, t, H);
+
+  // ---- Väggen: mörk panel av breda bräder ----
+  float bx = p.x * 7.0;
+  float bradd = fract(bx);
+  vec3 c = vec3(0.17, 0.1, 0.062) * (0.75 + 0.4 * fbm3(vec2(floor(bx) * 3.1, p.y * 5.0)));
+  c *= 0.85 + 0.25 * brus(vec2(bx * 0.6, p.y * 55.0 + floor(bx) * 13.0));
+  c *= 0.55 + 0.45 * min(smoothstep(0.0, 0.05, bradd), smoothstep(1.0, 0.95, bradd));
+  c *= lys;
+
+  // ---- Fönstret med vinternatten ----
+  vec2 fa = vec2(0.07, SIMS + 0.035), fb = vec2(0.93, H - 0.1);
+  vec2 fm = (fa + fb) * 0.5;
+  bool iRam = p.x > fa.x - 0.03 && p.x < fb.x + 0.03 && p.y > fa.y - 0.03 && p.y < fb.y + 0.03;
+  if (iRam) {
+    vec3 ram = vec3(0.62, 0.58, 0.52) * (lys * 0.9 + 0.08);
+    c = ram;
+    bool glas = p.x > fa.x && p.x < fb.x && p.y > fa.y && p.y < fb.y
+             && abs(p.x - mix(fa.x, fb.x, 1.0 / 3.0)) > 0.008 && abs(p.x - mix(fa.x, fb.x, 2.0 / 3.0)) > 0.008
+             && abs(p.y - fm.y) > 0.008;
+    if (glas) {
+      float g = (p.y - fa.y) / (fb.y - fa.y);
+      vec3 n = mix(vec3(0.06, 0.08, 0.17), vec3(0.012, 0.018, 0.055), g);
+      float mark = fa.y + 0.07 + 0.018 * sin(p.x * 7.0 + 1.0);
+      float gran = 0.0;
+      for (int k = 0; k < 7; k++) {
+        float fk = float(k);
+        float gx = 0.1 + fk * 0.135 + 0.03 * sin(fk * 5.3);
+        float gh = 0.16 + 0.1 * hash(vec2(fk, 2.0));
+        float hy = (p.y - mark) / gh;
+        float bredd = (1.0 - hy) * 0.045 * (0.85 + 0.15 * sin(hy * 40.0));
+        if (hy > 0.0 && hy < 1.0 && abs(p.x - gx) < bredd) gran = 1.0;
+      }
+      n = mix(n, vec3(0.012, 0.02, 0.028), gran);
+      if (p.y < mark) n = vec3(0.16, 0.18, 0.26) * (0.85 + 0.15 * brus(p * 40.0));
+      for (int k = 0; k < 2; k++) {
+        float fk = float(k);
+        float sk = 20.0 + fk * 16.0;
+        vec2 sp = p * sk + vec2(sin(t * 0.3 + fk) * 0.5, t * (0.5 + 0.3 * fk));
+        vec2 id = floor(sp);
+        vec2 f = fract(sp) - 0.5 - (hash2(id) - 0.5) * 0.6;
+        float fl = smoothstep(0.09 - 0.025 * fk, 0.0, length(f)) * step(0.55, hash(id + 3.0));
+        n += vec3(0.55, 0.6, 0.72) * fl * (1.0 - 0.45 * fk);
+      }
+      // Rummets värme speglas svagt i rutan
+      n += lys * 0.025;
+      c = n;
+    }
+  }
+
+  // ---- Fönsterbänken ----
+  if (p.y < SIMS + 0.035 && p.y > SIMS - 0.03 && p.x > 0.025 && p.x < 0.975) {
+    c = p.y > SIMS ? vec3(0.66, 0.6, 0.52) * (lys * 0.85 + 0.1) : vec3(0.42, 0.37, 0.31) * (lys * 0.7 + 0.05);
+  }
+
+  // ---- Ljusen hon har gjort, i fönstret ----
+  for (int i = 0; i < 8; i++) {
+    vec4 L = u_fonster[i];
+    if (L.w <= 0.0) continue;
+    float bas = SIMS + 0.035;
+    float fro = float(i);
+    // En liten ljusstake av mässing
+    vec2 dk = p - vec2(L.x, bas + 0.01);
+    float stake = step(abs(dk.y), 0.01) * step(abs(dk.x), 0.02 - dk.y * 0.6);
+    vec3 massing = vec3(0.6, 0.43, 0.18) * (lys * 0.7 + 0.25) * (0.75 + 0.5 * smoothstep(0.02, -0.01, dk.x));
+    c = mix(c, massing, stake * L.w);
+    // Ljuset
+    float topp = bas + 0.02 + L.y;
+    float rx = 0.0115;
+    float lx = p.x - L.x;
+    if (p.y > bas + 0.018 && p.y < topp + 0.002) {
+      float kant = smoothstep(rx, rx - px * 1.5, abs(lx));
+      float nx = lx / rx;
+      vec3 lc = vec3(0.97, 0.95, 0.9) * (0.35 + 0.5 * (0.55 - 0.45 * nx)) * (lys * 0.45 + 0.4);
+      float tand = clamp(L.z, 0.0, 1.0);
+      lc += vec3(1.0, 0.72, 0.4) * smoothstep(topp - 0.04, topp, p.y) * 0.45 * tand;
+      c = mix(c, lc, kant * L.w);
+    }
+    // Veken
+    if (abs(lx) < 0.0009 && p.y > topp && p.y < topp + 0.006) c = mix(c, vec3(0.08, 0.06, 0.05), L.w);
+    // Lågan och dess sken
+    if (L.z > 0.0) {
+      float tand = smoothstep(0.0, 1.0, L.z);
+      vec4 fl = laga(p, vec2(L.x, topp + 0.003), t, fro, tand);
+      c = mix(c, fl.rgb, fl.a * L.w);
+      vec2 d = p - vec2(L.x, topp + 0.012);
+      c += vec3(1.0, 0.6, 0.26) * (exp(-dot(d, d) / 0.0009) * 0.3 + exp(-dot(d, d) / 0.02) * 0.06) * tand * L.w;
+    }
+  }
+
+  // ---- Vedspisen ----
+  if (p.y < 0.315) {
+    vec3 j = vec3(0.045, 0.045, 0.05) * (0.7 + 0.3 * fbm3(p * 30.0));
+    if (p.y > 0.29) j = vec3(0.09, 0.09, 0.1) + vec3(0.3, 0.17, 0.08) * smoothstep(0.29, 0.315, p.y) * 0.4;
+    vec2 d = abs(p - vec2(0.5, 0.15)) - vec2(0.17, 0.075);
+    float lucka = max(d.x, d.y);
+    float eld = 0.55 + 0.45 * brus(vec2(p.x * 10.0, t * 2.6));
+    if (lucka < 0.0) {
+      j = vec3(0.06, 0.055, 0.05);
+      float springa = smoothstep(0.35, 0.5, fract(p.y * 34.0)) * smoothstep(0.65, 0.5, fract(p.y * 34.0));
+      springa *= step(abs(p.x - 0.5), 0.125) * step(abs(p.y - 0.15), 0.045);
+      j += vec3(1.0, 0.42, 0.1) * springa * eld * 1.3;
+    } else if (lucka < 0.008) {
+      j = vec3(0.16, 0.14, 0.12);
+    }
+    // Värmen från luckan lyser på spisens front
+    j += vec3(0.5, 0.2, 0.06) * exp(-length(p - vec2(0.5, 0.15)) * 9.0) * 0.25 * eld;
+    c = j;
+  }
+
+  // ---- Kastrullen: baksidan och insidan ----
+  vec2 kc = vec2(0.5, 0.645);
+  vec2 kr = vec2(0.26, 0.065);
+  float ke = length((p - kc) / kr);
+  vec2 vr = vec2(0.236, 0.058);
+  float ve = length((p - vec2(0.5, YV)) / vr);
+  float ljusX = u_ljus.x;
+  float ljusBotten = u_ljus.y - u_ljus.z;
+  bool doppat = ljusBotten < YV;
+  if (ke < 1.0) {
+    // Insidan av vit emalj, med stearin som stelnat längs kanten
+    vec3 in_ = vec3(0.62, 0.62, 0.6) * (0.45 + 0.35 * smoothstep(YV, kc.y + kr.y, p.y)) * (lys * 0.8 + 0.1);
+    c = in_;
+    if (ve < 1.0) {
+      // Det smälta stearinet: varmt elfenben, blankt, med ringar där något doppats
+      vec2 q = (p - vec2(0.5, YV)) / vr;
+      float hojd = 0.0, dhx = 0.0;
+      for (int i = 0; i < 4; i++) {
+        vec4 R = u_ring[i];
+        if (R.z <= 0.0) continue;
+        vec2 dq = vec2(p.x - R.x, (p.y - YV) * vr.x / vr.y);
+        float dist = length(dq);
+        float fas = dist * 140.0 - R.y * 9.0;
+        float amp = R.z * exp(-R.y * 1.6) * smoothstep(R.y * 0.08 + 0.02, 0.0, abs(dist - R.y * 0.06));
+        hojd += sin(fas) * amp;
+        dhx += cos(fas) * amp * (dq.y / max(dist, 1e-4));
+      }
+      // Omrörningen ger långsamma virvlar i ytan
+      float virv = fbm3(vec2(q.x * 2.0 + t * 0.05, q.y * 2.0 - t * 0.04) + u_rors * vec2(sin(t), cos(t)) * 0.3);
+      vec3 vax = vec3(0.96, 0.91, 0.78) * (0.66 + 0.3 * virv) * (lys * 0.4 + 0.5);
+      // Blänk av fönstret och rummets ljus längs bakkanten
+      float blank = smoothstep(-0.2, 0.9, q.y) * (0.18 + 0.12 * u_varme);
+      vax += vec3(1.0, 0.85, 0.65) * (blank + dhx * 0.35 + hojd * 0.15) * 0.6;
+      vax *= 1.0 - 0.25 * smoothstep(0.8, 1.0, ve);
+      // Menisken runt ljuset där det står nere i stearinet
+      if (doppat) {
+        float rr = texture(u_prof, vec2(1.0 - 0.5 / ${N}.0, 0.5)).r;
+        vec2 dm = vec2(p.x - ljusX, (p.y - YV) * vr.x / vr.y);
+        vax += vec3(1.0, 0.9, 0.7) * smoothstep(rr + 0.01, rr, length(dm)) * 0.25;
+      }
+      c = mix(c, vax, smoothstep(1.0, 0.97, ve));
+    }
+  }
+
+  // ---- Ånga som stiger från stearinet ----
+  {
+    float a = fbm(vec2(p.x * 5.0, p.y * 3.0 - t * 0.22));
+    float mask = smoothstep(0.24, 0.0, abs(p.x - 0.5)) * smoothstep(YV + 0.02, YV + 0.08, p.y) * smoothstep(YV + 0.55, YV + 0.1, p.y);
+    c += vec3(0.55, 0.5, 0.44) * smoothstep(0.55, 0.85, a) * mask * 0.06 * (lys.r * 0.6 + 0.4);
+  }
+
+  // ---- Ljuset som doppas, veken och pinnen ----
+  if (u_alfa > 0.0) {
+    float Lh = u_ljus.z;
+    vec2 hp = vec2(ljusX, u_ljus.y + 0.07);
+    float ca = cos(u_ljus.w), sa = sin(u_ljus.w);
+    vec2 d0 = p - hp;
+    vec2 q = vec2(ca * d0.x + sa * d0.y, -sa * d0.x + ca * d0.y) + hp;
+    float v = (u_ljus.y - q.y) / Lh;
+    float dx = q.x - ljusX;
+    vec2 pr = texture(u_prof, vec2(clamp(v, 0.0, 1.0) * (1.0 - 1.0 / ${N}.0) + 0.5 / ${N}.0, 0.5)).rg;
+    float r = max(pr.x, 1e-4), hv = pr.y;
+    float inne = 0.0;
+    float ny = 0.0;
+    if (v >= 0.0 && v <= 1.0) {
+      inne = smoothstep(r, r - px * 1.3, abs(dx));
+    } else if (v < 0.0) {
+      // Den rundade axeln upptill
+      float capH = r * 0.7;
+      float e = length(vec2(dx / r, (q.y - u_ljus.y) / max(capH, 1e-4)));
+      inne = smoothstep(1.0, 1.0 - px * 1.3 / r, e);
+      ny = clamp((q.y - u_ljus.y) / max(capH, 1e-4), 0.0, 1.0) * 0.8;
+    } else {
+      // Spetsen, där dropparna har stelnat
+      float capH = r * 0.75 + u_spets.x;
+      float e = length(vec2(dx / r, (ljusBotten - q.y) / max(capH, 1e-4)));
+      inne = smoothstep(1.0, 1.0 - px * 1.3 / r, e);
+      ny = -clamp((ljusBotten - q.y) / max(capH, 1e-4), 0.0, 1.0) * 0.8;
+    }
+    // Droppen som hänger under spetsen medan stearinet är varmt
+    float drR = u_spets.y;
+    if (drR > 0.0) {
+      vec2 dc = vec2(ljusX, ljusBotten - (r * 0.75 + u_spets.x) - drR * 0.35);
+      float e = length(vec2(dx, (q.y - dc.y) * 0.8) ) / drR;
+      float d = smoothstep(1.0, 0.85, e);
+      if (d > inne) { inne = d; hv = max(hv, u_spets.z); ny = -0.4; }
+    }
+    // Bara det som är ovanför stearinets yta syns
+    inne *= smoothstep(YV - 0.001, YV + 0.003, p.y);
+    if (inne > 0.0) {
+      float nx = clamp(dx / r, -1.0, 1.0);
+      vec3 n = normalize(vec3(nx, ny, sqrt(max(0.0, 1.0 - nx * nx)) + 0.05));
+      vec3 l = normalize(vec3(-0.45, 0.25, 0.85));
+      float dif = (max(dot(n, l), 0.0) + 0.35) / 1.35;
+      vec3 kall = vec3(0.97, 0.95, 0.9);
+      vec3 varm = vec3(0.94, 0.84, 0.64);
+      vec3 col = mix(kall, varm, hv);
+      // Svaga lager och ojämnheter i ytan
+      col *= 0.965 + 0.035 * brus(vec2(v * 140.0, nx * 3.0));
+      vec3 belys = lys * 0.5 + vec3(0.34, 0.33, 0.32);
+      col *= (0.3 + 0.7 * dif) * belys;
+      // Stearinet släpper igenom lite ljus i kanterna
+      col += vec3(1.0, 0.68, 0.38) * pow(1.0 - n.z, 2.0) * (0.06 + 0.12 * u_varme);
+      // Varmt stearin glänser
+      float spec = pow(max(dot(reflect(-l, n), vec3(0.0, 0.0, 1.0)), 0.0), mix(6.0, 50.0, hv));
+      col += vec3(1.0, 0.95, 0.85) * spec * mix(0.05, 0.55, hv);
+      c = mix(c, col, inne * u_alfa);
+    }
+    // Veken mellan ljuset och pinnen
+    float veke = smoothstep(0.0016, 0.0007, abs(dx)) * step(u_ljus.y - 0.002, q.y) * step(q.y, hp.y);
+    c = mix(c, vec3(0.9, 0.86, 0.76) * (lys * 0.7 + 0.2), veke * u_alfa);
+    // Pinnen hon håller veken i
+    float pd = abs(p.y - hp.y);
+    if (pd < 0.0075 && abs(p.x - ljusX) < 0.17) {
+      float n = pd / 0.0075;
+      vec3 tra = vec3(0.45, 0.3, 0.17) * (0.55 + 0.45 * (1.0 - n * n)) * (lys * 0.8 + 0.15);
+      tra *= 0.9 + 0.1 * brus(vec2(p.x * 160.0, 3.0));
+      c = mix(c, tra, smoothstep(1.0, 0.8, n) * smoothstep(0.17, 0.165, abs(p.x - ljusX)) * u_alfa);
+    }
+  }
+
+  // ---- Droppar som faller tillbaka i kastrullen ----
+  for (int i = 0; i < 6; i++) {
+    vec3 D = u_dr[i];
+    if (D.z <= 0.0) continue;
+    vec2 d = p - D.xy;
+    float e = length(vec2(d.x, d.y * 0.7)) / D.z;
+    c = mix(c, vec3(0.95, 0.86, 0.68) * (lys * 0.7 + 0.25) + vec3(0.3) * smoothstep(0.6, 0.0, length(d / D.z + vec2(0.35, -0.35))), smoothstep(1.0, 0.8, e));
+  }
+
+  // ---- Kastrullens framsida: röd emalj med vit kant ----
+  float wy = 0.25 - 0.016 * (kc.y - p.y) / 0.33;
+  float fram = kc.y - kr.y * sqrt(max(0.0, 1.0 - pow((p.x - 0.5) / kr.x, 2.0)));
+  float botten = 0.315 - 0.045 * sqrt(max(0.0, 1.0 - pow((p.x - 0.5) / wy, 2.0)));
+  if (abs(p.x - 0.5) < wy && p.y < fram + 0.004 && p.y > botten && ke >= 0.97) {
+    float nx = (p.x - 0.5) / wy;
+    vec3 emalj = vec3(0.6, 0.07, 0.05);
+    float dif = 0.35 + 0.65 * clamp(0.55 - 0.5 * nx, 0.0, 1.0);
+    vec3 kropp = emalj * dif * (lys * 0.8 + 0.15);
+    kropp += vec3(1.0, 0.85, 0.75) * pow(max(0.0, 1.0 - abs(nx + 0.42) * 7.0), 3.0) * 0.28 * (lys.r * 0.5 + 0.5);
+    // Spisens glöd underifrån
+    kropp += vec3(0.6, 0.2, 0.05) * smoothstep(0.42, 0.31, p.y) * 0.2;
+    // En liten vit emaljkant längst upp
+    float kant = smoothstep(0.014, 0.0, fram - p.y);
+    kropp = mix(kropp, vec3(0.88, 0.86, 0.8) * (lys * 0.8 + 0.15), kant);
+    kropp = mix(kropp, vec3(0.06, 0.08, 0.14), smoothstep(0.004, 0.0, abs(fram - p.y)) * 0.8);
+    c = mix(c, kropp, smoothstep(wy, wy - px * 1.5, abs(p.x - 0.5)));
+  }
+  // Kanten runt öppningen
+  if (abs(ke - 1.0) < 0.05 && p.y > fram - 0.002) {
+    vec3 rim = vec3(0.85, 0.83, 0.78) * (lys * 0.8 + 0.15);
+    rim = mix(rim, vec3(0.06, 0.08, 0.14), smoothstep(0.035, 0.05, abs(ke - 1.0)));
+    c = mix(c, rim, smoothstep(0.05, 0.04, abs(ke - 1.0)));
+  }
+  // Öronen att lyfta i
+  for (int k = 0; k < 2; k++) {
+    float sx = k == 0 ? -1.0 : 1.0;
+    vec2 d = (p - vec2(0.5 + sx * 0.275, 0.6)) / vec2(0.028, 0.016);
+    float e = length(d);
+    if (e < 1.0 && e > 0.55 && d.x * sx > -0.2) c = vec3(0.07, 0.07, 0.08) * (lys * 0.8 + 0.2);
+  }
+
+  // Mjuk vinjett
+  vec2 vg = (p - vec2(0.5, H * 0.5)) / vec2(0.9, H * 0.65);
+  c *= 0.72 + 0.28 * smoothstep(1.2, 0.3, length(vg));
+  frag = vec4(c * u_synlig, 1.0);
+}`;
+
+export default {
+  start(duk, scen) {
+    const gl = skapaGL(duk);
+    if (!gl) return utanGL(scen);
+    const prog = program(gl, HELSKARM, FS);
+    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_synlig', 'u_prof', 'u_ljus', 'u_spets', 'u_alfa',
+      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors']);
+    gl.useProgram(prog);
+    const tom = gl.createVertexArray();
+
+    // ---------- Ljuset ----------
+    const H = () => duk.clientHeight / duk.clientWidth;
+    const vilaTopp = () => Math.max(YV + LANGD + 0.12, H() * 0.72);
+    const r = new Float32Array(N).fill(VEKE);
+    const varme = new Float32Array(N);
+    const nere = new Uint8Array(N);
+    const vidDopp = new Float32Array(N);
+    let topp = vilaTopp() + 0.25, mal = vilaTopp();
+    let spets = 0;                       // stelnad droppe längst ner
+    let droppe = null;                   // { r, nasta, varm }
+    const fall = [];                     // fallande droppar { x, y, vy, r }
+    const ringar = [];                   // { x, t0, s }
+    let fas = 'doppa', fasTid = 0, alfa = 0;
+    let rors = 0, forraTopp = topp;
+    let dopp = 0;
+
+    let antal = 0;
+    try { antal = Math.max(0, Math.floor(Number(localStorage.getItem(NYCKEL)) || 0)); } catch {}
+    // Ljusen i fönstret: höjden varierar lite, som på riktiga doppade ljus
+    const fonster = FONSTER_X.map((x, i) => ({
+      x, hojd: 0.13 + 0.035 * ((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1,
+      tand: i < antal ? 10 : -1, syns: i < antal ? 1 : 0,
+    }));
+
+    function nollstall() {
+      r.fill(VEKE); varme.fill(0); nere.fill(0); vidDopp.fill(0);
+      spets = 0; droppe = null;
+    }
+
+    // ---------- Ljud ----------
+    const l = rumsLjud(1.4, 2);
+    const { ctx, ut } = l;
+    const eko = rum(1.8);
+    const ekoUt = ctx.createGain(); ekoUt.gain.value = 0.3;
+    eko.connect(ekoUt).connect(ut);
+    // Spisen: ett lågt brus av elden bakom luckan
+    const spis = brusKalla('rosa');
+    const spF = ctx.createBiquadFilter(); spF.type = 'lowpass'; spF.frequency.value = 170;
+    const spG = ctx.createGain(); spG.gain.value = 0.035;
+    spis.connect(spF).connect(spG).connect(ut);
+    // Det tröga stearinet när veken rör sig i det
+    const trog = brusKalla('rosa');
+    const trF = ctx.createBiquadFilter(); trF.type = 'lowpass'; trF.frequency.value = 280; trF.Q.value = 3;
+    const trG = ctx.createGain(); trG.gain.value = 0;
+    trog.connect(trF).connect(trG).connect(ut);
+    l.kallor.push(spis, trog);
+    let knasterTid = 0.5, puttraTid = 2;
+    function plopp(fart) {
+      const t = ctx.currentTime;
+      bubbla(ctx, ut, slump(120, 160), Math.min(0.045, 0.012 + fart * 0.05), t);
+      brusstot(ctx, ut, { frekvens: 420, q: 0.9, styrka: Math.min(0.03, fart * 0.05), langd: 0.012, nar: t });
+    }
+    function plipp() { bubbla(ctx, ut, slump(650, 950), 0.011); }
+    function tandFras() {
+      const t = ctx.currentTime;
+      const k = brusKalla('rosa');
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1700; f.Q.value = 0.7;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.022, t + 0.08);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+      k.connect(f).connect(g).connect(ut);
+      setTimeout(() => { try { k.stop(); } catch {} }, 1000);
+    }
+
+    // ---------- Ledtext ----------
+    const led = document.createElement('p');
+    led.className = 'lucka-ui ledtext';
+    led.textContent = 'Dra veken ner i stearinet';
+    led.style.bottom = '42%';
+    scen.append(led);
+    let ledVisad = false;
+
+    // ---------- Fingret ----------
+    let grepp = null;
+    fingrar(duk, {
+      ner: (x, y, id) => {
+        if (grepp || fas !== 'doppa') return;
+        grepp = { id, y0: y, topp0: mal };
+      },
+      drag: (x, y, id) => {
+        if (!grepp || grepp.id !== id) return;
+        const dy = (y - grepp.y0) / duk.clientWidth;
+        mal = klamp(grepp.topp0 - dy * 1.5, YV + 0.025, vilaTopp());
+      },
+      upp: (x, y, id) => {
+        if (grepp && grepp.id === id) grepp = null;
+      },
+    });
+
+    const tex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const data = new Float32Array(N * 2);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, N, 1, 0, gl.RG, gl.FLOAT, data);
+    gl.uniform1i(u.u_prof, 0);
+    const ringData = new Float32Array(16);
+    const drData = new Float32Array(18);
+    const fData = new Float32Array(32);
+
+    // ---------- Ritslinga ----------
+    const stoppa = slinga((tid, dt) => {
+      const vila = vilaTopp();
+      // Ledtexten visas en stund i början, tills hon har doppat första gången
+      if (!ledVisad && tid > 2.5) { led.classList.add('syns'); ledVisad = true; }
+      if (ledVisad && (dopp > 0 || tid > 14)) led.classList.remove('syns');
+
+      // Veken följer fingret. Släpper hon lyfts den sakta och jämnt, som när man
+      // drar upp ett ljus ur stearinet.
+      if (fas === 'doppa' && !grepp) mal = vila;
+      const fore = topp;
+      if (grepp) topp += (mal - topp) * Math.min(1, dt * 9);
+      else topp += klamp(mal - topp, -0.6 * dt, 0.42 * dt);
+      const fart = Math.abs(topp - fore) / Math.max(dt, 1e-3);
+      const botten = topp - LANGD;
+
+      // Ringar när spetsen bryter ytan
+      if (forraTopp - LANGD >= YV && botten < YV) {
+        const f = Math.abs(forraTopp - topp) / Math.max(dt, 1e-3);
+        ringar.push({ x: 0.5, t0: tid, s: Math.min(1, 0.3 + f * 0.8) });
+        if (ringar.length > 4) ringar.shift();
+        plopp(f);
+      }
+      forraTopp = topp;
+
+      // Lager för lager: det som lämnar stearinet tar med sig ett nytt lager
+      for (let i = 0; i < N; i++) {
+        const v = i / (N - 1);
+        const y = topp - v * LANGD;
+        if (y < YV) {
+          if (!nere[i]) { nere[i] = 1; vidDopp[i] = varme[i]; }
+          varme[i] += (1 - varme[i]) * Math.min(1, dt / 0.12);
+        } else {
+          if (nere[i]) {
+            nere[i] = 0;
+            r[i] += LAGER * (1 - 0.55 * vidDopp[i]) * (1 + 0.3 * Math.pow(v, 6));
+            if (i === N - 1) {
+              droppe = { r: 0.0065, nasta: slump(0.3, 0.6), varm: 1 };
+              dopp++;
+            }
+          }
+          varme[i] *= Math.exp(-dt / (KYL * (0.7 + 0.3 * r[i] / KLAR)));
+        }
+        data[i * 2] = r[i];
+        data[i * 2 + 1] = varme[i];
+      }
+      // Droppen under spetsen: den droppar ett par gånger och stelnar sedan
+      if (droppe) {
+        droppe.nasta -= dt;
+        droppe.varm = varme[N - 1];
+        if (botten < YV) droppe = null;
+        else if (droppe.nasta <= 0 && droppe.r > 0.0032 && droppe.varm > 0.45) {
+          fall.push({ x: 0.5, y: botten - r[N - 1] * 0.75 - spets - droppe.r, vy: 0, r: droppe.r * 0.6 });
+          droppe.r *= 0.72;
+          droppe.nasta = slump(0.35, 0.9);
+        } else if (droppe.varm < 0.4) {
+          spets = Math.min(0.022, spets + droppe.r * 0.35);
+          droppe = null;
+        }
+      }
+      for (let k = fall.length - 1; k >= 0; k--) {
+        const d = fall[k];
+        d.vy += 2.2 * dt;
+        d.y -= d.vy * dt;
+        if (d.y < YV) {
+          fall.splice(k, 1);
+          ringar.push({ x: d.x + slump(-0.004, 0.004), t0: tid, s: 0.25 });
+          if (ringar.length > 4) ringar.shift();
+          plipp();
+        }
+      }
+
+      // Omrörningen i stearinet och det tröga ljudet
+      const iVax = botten < YV;
+      rors += ((iVax ? Math.min(1, fart * 1.5) : 0) - rors) * Math.min(1, dt * 4);
+      const t = ctx.currentTime;
+      trG.gain.setTargetAtTime(0.07 * rors, t, 0.06);
+      trF.frequency.setTargetAtTime(200 + 250 * rors, t, 0.1);
+
+      // Spisen knastrar och stearinet puttrar svagt
+      knasterTid -= dt;
+      if (knasterTid <= 0) {
+        brusstot(ctx, ut, { frekvens: slump(1500, 4200), q: 1.2, styrka: slump(0.012, 0.035), langd: slump(0.001, 0.003) });
+        knasterTid = slump(0.12, 1.3);
+      }
+      puttraTid -= dt;
+      if (puttraTid <= 0) {
+        bubbla(ctx, ut, slump(100, 170), 0.01);
+        ringar.push({ x: 0.5 + slump(-0.15, 0.15), t0: tid, s: 0.12 });
+        if (ringar.length > 4) ringar.shift();
+        puttraTid = slump(2, 5);
+      }
+
+      // Färdigt? Ljuset är tjockt nog och har lämnat stearinet
+      if (fas === 'doppa') {
+        alfa = Math.min(1, alfa + dt / 1.2);
+        let summa = 0, n = 0;
+        for (let i = Math.floor(N * 0.12); i < Math.floor(N * 0.95); i++) { summa += r[i]; n++; }
+        if (summa / n >= KLAR && botten > YV + 0.05 && !grepp) {
+          fas = 'klar'; fasTid = 0;
+          klocka(587.3, { till: ut, eko, styrka: 0.028, ansats: 0.2, langd: 5 });
+          klocka(880, { till: ut, eko, styrka: 0.018, ansats: 0.25, langd: 5, nar: ctx.currentTime + 0.5 });
+        }
+      } else if (fas === 'klar') {
+        // Ljuset lyfts och tonar bort, och tänds i fönstret
+        fasTid += dt;
+        mal = vila + 0.2;
+        alfa = 1 - mjuk(1.0, 2.4, fasTid);
+        if (fasTid > 1.6 && fasTid - dt <= 1.6) {
+          const plats = antal % FONSTER_X.length;
+          const L = fonster[plats];
+          L.syns = 1; L.tand = 0;
+          antal++;
+          try { localStorage.setItem(NYCKEL, String(antal)); } catch {}
+          tandFras();
+        }
+        if (fasTid > 3.2) {
+          nollstall();
+          fas = 'ny'; fasTid = 0;
+          topp = vila + 0.25; forraTopp = topp;
+        }
+      } else if (fas === 'ny') {
+        // En ny veke sänks ner
+        fasTid += dt;
+        mal = vila;
+        alfa = mjuk(0, 1.2, fasTid);
+        if (fasTid > 1.4) fas = 'doppa';
+      }
+
+      // Ljusen i fönstret
+      let brinner = 0;
+      fonster.forEach((L, i) => {
+        if (L.tand >= 0) L.tand += dt;
+        fData[i * 4] = L.x;
+        fData[i * 4 + 1] = L.hojd;
+        fData[i * 4 + 2] = L.tand;
+        fData[i * 4 + 3] = L.syns;
+        if (L.tand > 0) brinner += Math.min(1, L.tand);
+      });
+
+      ringData.fill(0);
+      ringar.forEach((g, i) => {
+        const alder = tid - g.t0;
+        ringData[i * 4] = g.x; ringData[i * 4 + 1] = alder; ringData[i * 4 + 2] = alder < 4 ? g.s : 0;
+      });
+      drData.fill(0);
+      fall.slice(0, 6).forEach((d, i) => { drData[i * 3] = d.x; drData[i * 3 + 1] = d.y; drData[i * 3 + 2] = d.r; });
+
+      const vinkel = 0.012 * Math.sin(tid * 0.7) + 0.006 * Math.sin(tid * 1.9) * (iVax ? 0.2 : 1);
+
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, N, 1, gl.RG, gl.FLOAT, data);
+      anpassa(gl, duk, 0.75);
+      gl.viewport(0, 0, duk.width, duk.height);
+      gl.useProgram(prog);
+      gl.bindVertexArray(tom);
+      gl.uniform2f(u.u_res, duk.width, duk.height);
+      gl.uniform1f(u.u_tid, tid);
+      gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
+      gl.uniform4f(u.u_ljus, 0.5, topp, LANGD, vinkel);
+      gl.uniform3f(u.u_spets, spets, droppe ? droppe.r : 0, droppe ? droppe.varm : 0);
+      gl.uniform1f(u.u_alfa, alfa);
+      gl.uniform4fv(u.u_ring, ringData);
+      gl.uniform3fv(u.u_dr, drData);
+      gl.uniform4fv(u.u_fonster, fData);
+      gl.uniform1f(u.u_varme, Math.min(1, brinner / 4));
+      gl.uniform1f(u.u_rors, rors);
+      ritaHelskarm(gl);
+    });
+
+    return stangning({ ljud: l, stoppa, gl });
+  },
+};

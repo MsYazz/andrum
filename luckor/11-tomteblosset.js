@@ -254,7 +254,7 @@ export default {
     // upp i nederkanten. Tar hon det tänds det av sig självt.
     const H = () => duk.clientHeight / duk.clientWidth;
     const LANGD = 0.46;
-    const BRINNTID = 75;                    // sekunder från toppen till handtaget
+    const BRINNTID = 50;                    // sekunder från toppen till handtaget
     const grepp = { x: 0.58, y: H() * 0.3 }; // där handen håller
     const mal = { ...grepp };
     let vinkel = 1.78;                       // blosset lutar lite åt vänster

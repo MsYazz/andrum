@@ -37,7 +37,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 20 | **Strandkanten** | Skriver i den våta sanden och en våg sköljer upp och slätar ut det. Det är meningen att det ska försvinna | Höjdfält, svall med skumspets | Klar |
 | 21 | **Längsta natten** | Vintersolståndet. Drar från stjärna till stjärna och gör egna stjärnbilder som klingar. Lutningen förskjuter himlen mot skogen | Instansierade ljuspunkter, parallax, gyro | Klar |
 | 22 | **Snögloben** | Skakar, lutar eller sveper över en snöglob med en röd stuga och en tänd gran, och snön virvlar upp och singlar sakta ner. Ett tryck på foten drar upp speldosan | Virvelflöde, tyngd från rörelsesensorn, speldosa | Klar |
-| 23 | **Degen** | Bakdag. Trycker och knådar en mjuk saffransdeg på ett mjölat bakbord. Groparna fylls långsamt igen när degen jäser, och ett tryck på bordet strör mjöl | Höjdfält där det undanträngda väller upp, mjölskikt | Klar |
+| 23 | **Ljusstöpningen** | Köket kvällen före julafton. Hon drar en veke ner i varmt stearin och släpper, och ljuset växer lager för lager. Varmt stearin är blankt och gulaktigt och svalnar till matt vitt. Färdiga ljus tänds och samlas i fönstret | Radieprofil längs ljuset, värme per lager, droppar och ringar | Klar |
 | 24 | **Grottan** | Julafton. Första gången hänger ett julkort från Ella framför grottan. Ett varmt grottrum med en eld, en porlande bäck och eldflugor, och en vinternatt med en klar stjärna utanför. Ett stilla finger samlar eldflugorna, ett tryck i elden ger gnistor och i bäcken ringar. En plats att vila på utan dåligt samvete | Allt tillsammans | Klar |
 
 ## Reserver
@@ -51,3 +51,4 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 - **Mossan** (var lucka 11): mönstren påminde mer om en bakterieodling än om mossa. Garnnystanet tog dess plats.
 - **Garnnystanet** (var lucka 11): poängen var svår att förstå. Tomteblosset tog dess plats.
 - **Maskrosbollen** (var lucka 22): inte tillräckligt juligt. Snögloben tog dess plats.
+- **Degen** (var lucka 23): kändes poänglös. Ljusstöpningen tog dess plats.
