@@ -9,13 +9,16 @@
 // varmt smälter det nya lagret bort, så det lönar sig att vänta lite mellan doppen.
 // Det kan aldrig bli fel, bara långsammare.
 //
+// Bredvid kastrullen ligger en sax. När hon tycker att ljuset är klart klipper hon av
+// veken med den. Saxen lyser svagt när ljuset har fått en lagom tjocklek.
+//
 // När ljuset är färdigt tänds det och ställs i fönstret, och en ny veke hänger där.
 // Ljusen hon har gjort står kvar i fönstret och lyser upp köket nästa gång också.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
 import { brusKalla, rum, klocka } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
-import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning, bubbla, brusstot } from '../lib/scen.js';
+import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning, bubbla, brusstot, klang } from '../lib/scen.js';
 
 const N = 96;                 // punkter längs ljuset
 const LANGD = 0.42;           // ljusets längd, i skärmbredder
@@ -31,6 +34,8 @@ const FORM_NYCKEL = 'andrum.stopta.former';
 const FN = 48;                // punkter i en sparad form
 const SKALA = 0.4;            // ljusen i fönstret är mindre än det som doppas
 const V0 = 0.1;               // den tunna halsen närmast pinnen klipps bort
+const SAX = [0.855, 0.35];   // saxens led, där den ligger på spisen
+const MAXR = 0.05;            // tjockare än så växer ljuset knappt
 
 const FS = `#version 300 es
 precision highp float;
@@ -49,6 +54,7 @@ uniform vec4 u_fonster[8];  // ljusen i fönstret: x, höjd, tid sedan tändning
 uniform sampler2D u_former; // varje fönsterljus form: r vänster, g höger, en rad per ljus
 uniform float u_varme;      // hur många ljus som brinner i fönstret
 uniform float u_rors;       // hur mycket stearinet rörs om
+uniform vec2 u_sax;         // hur öppen saxen är, och hur mycket den lyser
 ${BRUS}
 
 const float YV = ${YV.toFixed(3)};
@@ -388,6 +394,44 @@ void main() {
     if (e < 1.0 && e > 0.55 && d.x * sx > -0.2) c = vec3(0.07, 0.07, 0.08) * (lys * 0.8 + 0.2);
   }
 
+  // ---- Saxen som ligger på spisen bredvid kastrullen ----
+  {
+    vec2 led = vec2(${SAX[0]}, ${SAX[1]});
+    // Saxens sken när ljuset är lagom tjockt
+    vec2 dg = (p - led - vec2(-0.01, 0.0)) / vec2(0.13, 0.07);
+    c += vec3(1.0, 0.75, 0.45) * exp(-dot(dg, dg) * 2.0) * u_sax.y * (0.1 + 0.05 * sin(t * 2.2));
+    float oppen = u_sax.x;
+    vec2 rikt = normalize(vec2(-1.0, 0.1));
+    for (int k = 0; k < 2; k++) {
+      float sg = k == 0 ? 1.0 : -1.0;
+      float a = sg * oppen * 0.5;
+      vec2 d = vec2(cos(a) * rikt.x - sin(a) * rikt.y, sin(a) * rikt.x + cos(a) * rikt.y);
+      // Bladet: blankt stål som smalnar av mot spetsen
+      vec2 ba = d * 0.105;
+      vec2 pa = p - led;
+      float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+      float dist = length(pa - ba * h);
+      float bredd = 0.0085 * (1.0 - h * 0.85) + 0.0008;
+      if (dist < bredd) {
+        float sida = dot(pa - ba * h, vec2(-d.y, d.x)) * sg;
+        vec3 stal = mix(vec3(0.42, 0.44, 0.47), vec3(0.85, 0.87, 0.9), smoothstep(-bredd, bredd, sida));
+        stal *= lys * 0.45 + 0.6;
+        c = mix(c, stal, smoothstep(bredd, bredd - px * 1.2, dist));
+      }
+      // Handtaget: en ögla av orange plast på andra sidan leden
+      vec2 oc = led - d * 0.05 + vec2(-d.y, d.x) * sg * 0.018;
+      float r = length((p - oc) / vec2(1.0, 0.75));
+      float ogla = abs(r - 0.017);
+      if (ogla < 0.0065) {
+        vec3 plast = vec3(0.95, 0.42, 0.08) * (0.55 + 0.45 * smoothstep(0.0065, 0.0, ogla)) * (lys * 0.5 + 0.55);
+        c = mix(c, plast, smoothstep(0.0065, 0.0053, ogla));
+      }
+    }
+    // Leden
+    float dl = length(p - led);
+    c = mix(c, vec3(0.7, 0.72, 0.75) * (lys * 0.45 + 0.6), smoothstep(0.0048, 0.0036, dl));
+  }
+
   // Mjuk vinjett
   vec2 vg = (p - vec2(0.5, H * 0.5)) / vec2(0.9, H * 0.65);
   c *= 0.72 + 0.28 * smoothstep(1.2, 0.3, length(vg));
@@ -400,7 +444,7 @@ export default {
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
     const u = platser(gl, prog, ['u_res', 'u_tid', 'u_synlig', 'u_prof', 'u_ljus', 'u_spets', 'u_alfa',
-      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors', 'u_snitt', 'u_former']);
+      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors', 'u_snitt', 'u_former', 'u_sax']);
     gl.useProgram(prog);
     const tom = gl.createVertexArray();
 
@@ -510,6 +554,13 @@ export default {
       brusstot(ctx, ut, { frekvens: 420, q: 0.9, styrka: Math.min(0.03, fart * 0.05), langd: 0.012, nar: t });
     }
     function plipp() { bubbla(ctx, ut, slump(650, 950), 0.011); }
+    function klippLjud() {
+      const t = ctx.currentTime;
+      // Två korta metalliska knäpp när bladen glider mot varandra och möts
+      brusstot(ctx, ut, { frekvens: 5200, q: 3, styrka: 0.03, langd: 0.0025, nar: t });
+      brusstot(ctx, ut, { frekvens: 3800, q: 2.5, styrka: 0.035, langd: 0.003, nar: t + 0.07 });
+      klang(ctx, ut, 3100, [[1, 1, 0.12], [2.7, 0.4, 0.06]], { styrka: 0.006, ansats: 0.001, nar: t + 0.07 });
+    }
     function tandFras() {
       const t = ctx.currentTime;
       const k = brusKalla('rosa');
@@ -530,6 +581,24 @@ export default {
     scen.append(led);
     let ledVisad = false;
 
+    // ---------- Saxen ----------
+    let saxOppen = 0.16, saxTid = -1, saxSken = 0, saxTryck = null, redo = false, saxLedVisad = false;
+    const paSaxen = (wx, wy) => Math.hypot((wx - SAX[0]) / 1.5, wy - SAX[1]) < 0.065;
+    function klipp() {
+      if (fas !== 'doppa' || saxTid >= 0) return;
+      saxTid = 0;
+      klippLjud();
+      grepp = null;
+      // Bar veke, eller ljuset nere i stearinet: saxen klipper bara i luften
+      const botten = pinne.y - (HALS + LANGD) * Math.cos(vinkel);
+      if (dopp === 0 || botten < YV + 0.01) return;
+      fas = 'klar'; fasTid = 0;
+      droppe = null;
+      led.classList.remove('syns');
+      klocka(587.3, { till: ut, eko, styrka: 0.028, ansats: 0.2, langd: 5, nar: ctx.currentTime + 0.25 });
+      klocka(880, { till: ut, eko, styrka: 0.018, ansats: 0.25, langd: 5, nar: ctx.currentTime + 0.75 });
+    }
+
     // ---------- Fingret ----------
     // Så fort hon rör vid skärmen har hon tag i pinnen, var hon än sätter fingret.
     // Sedan följer pinnen fingret, upp, ner och åt sidan, tills hon släpper.
@@ -539,6 +608,8 @@ export default {
       ner: (x, y, id) => {
         if (grepp || fas !== 'doppa') return;
         const [wx, wy] = tillVarld(x, y);
+        // Ett tryck på saxen tar inte tag i pinnen
+        if (paSaxen(wx, wy)) { saxTryck = id; return; }
         grepp = { id, ox: pinne.x - wx, oy: pinne.y - wy };
         mal.x = pinne.x; mal.y = pinne.y;
       },
@@ -548,8 +619,13 @@ export default {
         mal.x = wx + grepp.ox;
         mal.y = wy + grepp.oy;
       },
-      upp: (x, y, id) => {
+      upp: (x, y, id, { tryck }) => {
         if (grepp && grepp.id === id) grepp = null;
+        if (saxTryck === id) {
+          saxTryck = null;
+          const [wx, wy] = tillVarld(x, y);
+          if (tryck && paSaxen(wx, wy)) klipp();
+        }
       },
     });
     // Pinnen hålls inom rummet, och nere i kastrullen styr kanten ljuset inåt
@@ -614,7 +690,7 @@ export default {
     const stoppa = slinga((tid, dt) => {
       // Ledtexten visas en stund i början, tills hon har doppat första gången
       if (!ledVisad && tid > 2.5) { led.classList.add('syns'); ledVisad = true; }
-      if (ledVisad && (dopp > 0 || tid > 16)) led.classList.remove('syns');
+      if (ledVisad && !saxLedVisad && (dopp > 0 || tid > 16)) led.classList.remove('syns');
 
       // ---- Pinnen och ljuset ----
       const botten0 = pinne.y - (HALS + LANGD) * Math.cos(vinkel);
@@ -672,7 +748,8 @@ export default {
           if (nere[i]) {
             nere[i] = 0;
             // Ett nytt flytande lager. Var ljuset redan varmt fastnar mindre.
-            const tjock = LAGER * (1 - 0.6 * vidDopp[i]);
+            const nu = (fast[0][i] + fast[1][i]) * 0.5;
+            const tjock = LAGER * (1 - 0.6 * vidDopp[i]) * Math.max(0.12, 1 - nu / MAXR);
             film[0][i] += tjock * lagerForm[0](v);
             film[1][i] += tjock * lagerForm[1](v);
             if (i === N - 1) {
@@ -774,15 +851,17 @@ export default {
         puttraTid = slump(2, 5);
       }
 
-      // Färdigt? Ljuset är tjockt nog, har lämnat stearinet och hon har släppt pinnen
+      // Lagom tjockt? Då lyser saxen svagt, men det är hon som bestämmer när det är klart
       if (fas === 'doppa') {
         alfa = Math.min(1, alfa + dt / 1.2);
         let summa = 0, n = 0;
         for (let i = Math.floor(N * 0.1); i < Math.floor(N * 0.95); i++) { summa += data[i * 4] + data[i * 4 + 1]; n += 2; }
-        if (summa / n >= KLAR && botten > YV + 0.05 && !grepp && !droppe) {
-          fas = 'klar'; fasTid = 0;
-          klocka(587.3, { till: ut, eko, styrka: 0.028, ansats: 0.2, langd: 5 });
-          klocka(880, { till: ut, eko, styrka: 0.018, ansats: 0.25, langd: 5, nar: ctx.currentTime + 0.5 });
+        redo = summa / n >= KLAR;
+        if (redo && !saxLedVisad && !grepp && botten > YV + 0.05) {
+          saxLedVisad = true;
+          led.textContent = 'Klipp loss ljuset med saxen';
+          led.classList.add('syns');
+          setTimeout(() => led.classList.remove('syns'), 6000);
         }
       } else if (fas === 'klar') {
         // Ljuset lyfts och tonar bort, och tänds i fönstret
@@ -812,6 +891,14 @@ export default {
         alfa = mjuk(0, 1.2, fasTid);
         if (fasTid > 1.4) fas = 'doppa';
       }
+
+      // Saxen: bladen öppnas och klipper ihop
+      if (saxTid >= 0) {
+        saxTid += dt;
+        saxOppen = saxTid < 0.07 ? 0.16 + (saxTid / 0.07) * 0.34 : Math.max(0.0, 0.5 - ((saxTid - 0.07) / 0.08) * 0.5);
+        if (saxTid > 0.6) { saxTid = -1; }
+      } else saxOppen += (0.16 - saxOppen) * Math.min(1, dt * 3);
+      saxSken += ((redo && fas === 'doppa' ? 1 : 0) - saxSken) * Math.min(1, dt * 1.5);
 
       // Ljusen i fönstret
       let brinner = 0;
@@ -850,6 +937,7 @@ export default {
       gl.uniform4fv(u.u_fonster, fData);
       gl.uniform1f(u.u_varme, Math.min(1, brinner / 4));
       gl.uniform1f(u.u_rors, rors);
+      gl.uniform2f(u.u_sax, saxOppen, saxSken);
       ritaHelskarm(gl);
     });
 
