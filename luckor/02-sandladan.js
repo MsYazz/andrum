@@ -5,6 +5,7 @@
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, slappGL, utanGL } from '../lib/gl.js';
 import { ljud, brusKalla, sov } from '../lib/ljud.js';
+import { skapaMatta } from '../lib/inspelning.js';
 
 const CELL = 2;          // css-pixlar per sandcell
 const BAS = 0.5;         // sandens grundhöjd
@@ -334,27 +335,35 @@ export default {
     ut.gain.setTargetAtTime(1.2, ctx.currentTime, 1.2);
     const kallor = [];
 
-    // Svag vind
-    const vind = brusKalla('rosa');
-    const vindFilter = ctx.createBiquadFilter();
-    vindFilter.type = 'lowpass';
-    vindFilter.frequency.value = 380;
-    const vindGain = ctx.createGain();
-    vindGain.gain.value = 0.045;
-    const vindLfo = ctx.createOscillator();
-    vindLfo.frequency.value = 0.06;
-    const vindDjup = ctx.createGain();
-    vindDjup.gain.value = 0.02;
-    vindLfo.connect(vindDjup).connect(vindGain.gain);
-    const filterLfo = ctx.createOscillator();
-    filterLfo.frequency.value = 0.037;
-    const filterDjup = ctx.createGain();
-    filterDjup.gain.value = 140;
-    filterLfo.connect(filterDjup).connect(vindFilter.frequency);
-    vind.connect(vindFilter).connect(vindGain).connect(ut);
-    vindLfo.start();
-    filterLfo.start();
-    kallor.push(vind, vindLfo, filterLfo);
+    // Svag ökenvind: en inspelning från den mexikanska öknen, där ett kort missljud
+    // hoppas över. Går den inte att ladda räknas vinden fram som förut.
+    const vindMatta = skapaMatta(ctx, ut, 'ljud/sandlada-vind.mp3', {
+      avsnitt: [[0.5, 15.9], [17.0, 72.4]], niva: 0.015, bit: [10, 20], over: 4, hp: 70, tonhojd: 0.02,
+    });
+    kallor.push(vindMatta);
+    vindMatta.klar.catch(framraknadVind);
+    function framraknadVind() {
+      const vind = brusKalla('rosa');
+      const vindFilter = ctx.createBiquadFilter();
+      vindFilter.type = 'lowpass';
+      vindFilter.frequency.value = 380;
+      const vindGain = ctx.createGain();
+      vindGain.gain.value = 0.045;
+      const vindLfo = ctx.createOscillator();
+      vindLfo.frequency.value = 0.06;
+      const vindDjup = ctx.createGain();
+      vindDjup.gain.value = 0.02;
+      vindLfo.connect(vindDjup).connect(vindGain.gain);
+      const filterLfo = ctx.createOscillator();
+      filterLfo.frequency.value = 0.037;
+      const filterDjup = ctx.createGain();
+      filterDjup.gain.value = 140;
+      filterLfo.connect(filterDjup).connect(vindFilter.frequency);
+      vind.connect(vindFilter).connect(vindGain).connect(ut);
+      vindLfo.start();
+      filterLfo.start();
+      kallor.push(vind, vindLfo, filterLfo);
+    }
 
     // Krattans skrap: korn genom ett bandpassfilter, plus ett mjukt sus
     const korn = brusKalla('korn');
