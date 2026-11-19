@@ -183,7 +183,7 @@ void main() {
       vec2 q = p - u_avtryck.xy;
       float ca = cos(u_avtryck.z), sa = sin(u_avtryck.z);
       q = vec2(ca * q.x + sa * q.y, -sa * q.x + ca * q.y);
-      float e = length(q / vec2(0.055, 0.04));
+      float e = length(q / vec2(0.07, 0.05));
       float linjer = smoothstep(0.34, 0.0, abs(fract(e * 6.0 + 0.25 * fbm(q * 160.0)) - 0.5));
       float yta = smoothstep(1.0, 0.7, e);
       // En svag, matt fläck och tunna linjer, som ett avtryck i damm
@@ -291,13 +291,13 @@ export default {
 
     // ---------- Fingret och pinnen ----------
     // En krokig kvist svävar en bit över sanden. Ett diskret fingeravtryck visar var man
-    // håller i den, strax ovanför den lilla sidokvisten. Tar hon där sänks kvisten ner
+    // håller i den, strax bakom den lilla sidokvisten, på handens sida. Tar hon där sänks kvisten ner
     // och sitter fast i fingret, och spetsen, en bit framför fingret, ristar i sanden
     // ända tills hon släpper. Tar hon på kvisten någon annanstans lyfter hon den i
     // stället och kan flytta den. Fri sand gör ingenting. Släpper hon svävar kvisten kvar.
     // Kvistens form: vinklar och längder för varje del, från spetsen bakåt mot handen
     const FORM = [[0, 0.12], [0.2, 0.15], [-0.14, 0.14], [0.1, 0.13]];
-    const GREPP = 0.2;                // från spetsen till fingret, längs kvisten
+    const GREPP = 0.36;               // från spetsen till fingret, längs kvisten, bakom sidokvisten
     const BAS_VINKEL = Math.atan2(-0.89, 0.45);
     const asp = () => duk.clientHeight / duk.clientWidth;
     // Greppets läge (där fingret håller), och var den ska vara
@@ -374,7 +374,7 @@ export default {
         if (pinne.nere) return;
         fingerTill(x, y);
         forra = null;
-        if (Math.hypot(pinne.mx - pinne.x, pinne.my - pinne.y) < 0.07) pinne.lage = 'rista';
+        if (Math.hypot(pinne.mx - pinne.x, pinne.my - pinne.y) < 0.085) pinne.lage = 'rista';
         else if (avstandTillKvist(pinne.mx, pinne.my) < 0.035) pinne.lage = 'flytta';
         else { pinne.lage = 'ingen'; return; }
         pinne.nere = true;
