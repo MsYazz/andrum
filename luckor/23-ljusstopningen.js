@@ -36,6 +36,7 @@ const SKALA = 0.4;            // ljusen i fönstret är mindre än det som doppa
 const V0 = 0.1;               // den tunna halsen närmast pinnen klipps bort
 const SAX = [0.835, 0.352];  // saxens led, där den ligger på spisen
 const MAXR = 0.05;            // tjockare än så växer ljuset knappt
+const MINDOPP = 8;            // så många dopp innan ljuset går att klippa loss
 
 const FS = `#version 300 es
 precision highp float;
@@ -493,7 +494,8 @@ export default {
     const ringar = [];                   // { x, t0, s }
     let fas = 'ny', fasTid = 0, alfa = 0;   // rummet börjar med att veken sänks ner
     let rors = 0, forraBotten = 9;
-    let dopp = 0;
+    let dopp = 0;                        // alla dopp sedan rummet öppnades
+    let ljusDopp = 0;                    // dopp på ljuset som hänger nu
 
     let antal = 0;
     try { antal = Math.max(0, Math.floor(Number(localStorage.getItem(NYCKEL)) || 0)); } catch {}
@@ -527,7 +529,7 @@ export default {
     function nollstall() {
       for (let s = 0; s < 2; s++) { fast[s].fill(VEKE); film[s].fill(0); }
       varme.fill(0); nere.fill(0); vidDopp.fill(0);
-      spets = 0; droppe = null;
+      spets = 0; droppe = null; ljusDopp = 0;
       vinkel = 0; vinkelFart = 0;
       ljusForm = ojamnhet(); doppForm = ojamnhet();
     }
@@ -613,9 +615,9 @@ export default {
       saxTid = 0;
       klippLjud();
       grepp = null;
-      // Bar veke, eller ljuset nere i stearinet: saxen klipper bara i luften
+      // För få dopp, eller ljuset nere i stearinet: saxen klipper bara i luften
       const botten = pinne.y - (HALS + LANGD) * Math.cos(vinkel);
-      if (dopp === 0 || botten < YV + 0.01) return;
+      if (ljusDopp < MINDOPP || botten < YV + 0.01) return;
       fas = 'klar'; fasTid = 0;
       droppe = null;
       led.classList.remove('syns');
@@ -779,6 +781,7 @@ export default {
             if (i === N - 1) {
               droppe = { r: 0.0055, nasta: slump(0.3, 0.6), varm: 1 };
               dopp++;
+              ljusDopp++;
               doppForm = ojamnhet();
             }
           }
@@ -880,7 +883,7 @@ export default {
         alfa = Math.min(1, alfa + dt / 1.2);
         let summa = 0, n = 0;
         for (let i = Math.floor(N * 0.1); i < Math.floor(N * 0.95); i++) { summa += data[i * 4] + data[i * 4 + 1]; n += 2; }
-        redo = summa / n >= KLAR;
+        redo = summa / n >= KLAR && ljusDopp >= MINDOPP;
         if (redo && !saxLedVisad && !grepp && botten > YV + 0.05) {
           saxLedVisad = true;
           led.textContent = 'Klipp loss ljuset med saxen';
