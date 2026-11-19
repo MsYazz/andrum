@@ -17,3 +17,5 @@ krav på att nämna upphovspersonen). De är Freesounds förhandslyssningsfiler 
 | `frost-landning.mp3` | Frostängen (7) | "Footsteps_Mountain_Boots_Grass_Mono.wav" av Nox_Sound, landningen vid 0:45, https://freesound.org/people/Nox_Sound/sounds/556042/ |
 | `tjarn-fladdermus.mp3` | Tjärnen (9) | "Bats 1.wav" av iainmccurdy, https://freesound.org/people/iainmccurdy/sounds/498406/ |
 | `snoglob-speldosa.mp3` | Snögloben (22) | "What Child is This.wav" av ZekiFoxx, https://freesound.org/people/ZekiFoxx/sounds/118165/ |
+| `strand-hav.mp3` | Strandkanten (20) | "MareMio.wav" av Kigofix, 0:50 till 1:50, https://freesound.org/people/Kigofix/sounds/219120/ |
+| `strand-vag.mp3` | Strandkanten (20) | "Gentle Ocean Waves Loop" av kkenny101, https://freesound.org/people/kkenny101/sounds/852826/ |

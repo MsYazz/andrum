@@ -8,6 +8,10 @@ import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } fr
 import { brusKalla } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, rumsLjud, slinga, fingrar, stangning } from '../lib/scen.js';
+import { skapaMatta, skapaLjudbank } from '../lib/inspelning.js';
+
+// De enskilda vågorna i inspelningen av mjuka vågor på sand, [start, längd]
+const VAGOR = [[0.1, 2.2], [2.35, 2.0], [4.3, 2.0], [6.5, 1.7], [8.1, 2.3], [10.3, 2.0], [13.3, 2.5], [16.1, 1.8], [18.2, 2.0], [20.1, 1.6]];
 
 const SW = 192, SH = 420;
 const BAS = 0.5;
@@ -199,6 +203,14 @@ export default {
     const skG = ctx.createGain(); skG.gain.value = 0;
     skrap.connect(skF).connect(skG).connect(ut);
     l.kallor.push(branning, brLfo, svall, fras, skrap);
+    // Havet: ett lugnt hav i bakgrunden, och en riktig våg som sköljer upp varje gång en
+    // våg syns på skärmen. Går inspelningarna inte att ladda räknas ljuden fram.
+    const havMatta = skapaMatta(ctx, ut, 'ljud/strand-hav.mp3', { niva: 0.02, bit: [10, 20], over: 4, hp: 80, tonhojd: 0.02, jamna: 0.3 });
+    const vagBank = skapaLjudbank(ctx, ut, 'ljud/strand-vag.mp3', VAGOR, { maxTopp: 0.12, hp: 60 });
+    l.kallor.push(havMatta, vagBank);
+    let havInspelat = false, vagInspelad = false;
+    havMatta.klar.then(() => { havInspelat = true; brG.gain.cancelScheduledValues(ctx.currentTime); brG.gain.setTargetAtTime(0, ctx.currentTime, 1); brDjup.gain.value = 0; }, () => {});
+    vagBank.klar.then(() => { vagInspelad = true; }, () => {});
 
     // ---------- Fingret ----------
     let forra = null;
@@ -240,6 +252,8 @@ export default {
         if (lagst > nar && klocka - skrevs > 25 && Math.random() < 0.6) nar = Math.min(0.9, lagst + 0.05);
         if (nar >= lagst) lagst = 0;
         vag = { start: tid, nar, langd: slump(6, 9) * (0.8 + nar * 0.4), fro: slump(0, 50) };
+        // Vågor som når längre upp låter starkare och lite längre
+        vagBank.spela({ styrka: 0.5 + 0.6 * nar, tonhojd: 0.04, ansats: 0.25 });
         nastaVag = vag.langd + slump(2, 8);
       }
       const forraLage = vagLage;
@@ -265,7 +279,7 @@ export default {
       // Vågens ljud: brus när den sköljer upp, fräs när den drar sig tillbaka
       const t = ctx.currentTime;
       const fart = Math.abs(vagLage - forraLage) / Math.max(dt, 1e-3);
-      svG.gain.setTargetAtTime(drar ? 0.02 * vatten : 0.09 * Math.min(1, fart * 6) * vatten, t, 0.15);
+      svG.gain.setTargetAtTime(vagInspelad ? 0 : drar ? 0.02 * vatten : 0.09 * Math.min(1, fart * 6) * vatten, t, 0.15);
       svF.frequency.setTargetAtTime(500 + 900 * Math.min(1, fart * 5), t, 0.2);
       frG.gain.setTargetAtTime(drar ? 0.03 * Math.min(1, fart * 8) * vatten : 0.004, t, 0.2);
       skrapFart = Number.isFinite(skrapFart) ? skrapFart * Math.exp(-dt * 5) : 0;
