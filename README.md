@@ -21,6 +21,7 @@ python -m http.server 5180
 - `lib/korn-processor.js`: kornsyntes för sand, där varje korn är ett litet tonlöst knäpp och simuleringen styr hur många, hur ljusa och hur mycket som rasar
 - `ljud/`: inspelningarna, alla CC0, med källor i `ljud/KALLOR.md`
 - `lib/vakt-processor.js`: ljudvakten, som sitter sist i ljudkedjan och stänger ljudet på några millisekunder om något plötsligt blir för starkt eller brusigt
+- `lib/mottagare.js`: de personliga julkorten visas bara med flaggan `?till=vivan` i länken. Flaggan sparas och skrivs in i hemskärmsappens startadress (`manifest-vivan.webmanifest`). `?till=ingen` stänger av den.
 - `lib/portratt.js`: håller appen i porträttläge även när telefonen vrids
 - `lib/rorelse.js`, `lib/haptik.js`: lutning, skakningar och små haptiska klick
 - `luckor/NN-namn.js`: ett rum per fil, exporterar `start(duk, scen)` som returnerar en stoppfunktion
