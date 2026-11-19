@@ -234,44 +234,59 @@ export default {
       return {
         x: Math.cos(a) * rr, y: Math.sin(a) * rr, vx: 0, vy: 0, vila: false,
         storlek: slump(0.003, 0.0075), ljus: slump(0.45, 1), fall: slump(0.05, 0.11),
+        // Djupet i kulan (-1 främst, 1 längst bak) och en egen långsam drift
+        z: slump(-1, 1), wx: 0, wy: 0,
       };
     });
     // Flödet: vattnet i kulan beskrivs med en strömfunktion, så att det aldrig kan
     // tryckas ihop och aldrig strömmar in i glaset. Allt som rör sig i mitten måste
     // vända och komma tillbaka längs kanten. Virvlarna klingar av, och kulans eget
     // snurr är starkast en bit in och står nästan still mot glaset, som riktigt vatten.
+    // Ovanpå det finns mjuka, långsamt skiftande strömvirvlar som blir starkare när
+    // kulan skakas. Vattnet strömmar olika på olika djup, så snön blir ett moln som
+    // virvlar i stället för trådar som följer samma strömlinje.
     const virvlar = [];
     let svepX = 0, svepY = 0, rotation = 0;
+    let klocka = 0, oro = 0.6;          // snön börjar uppvirvlad, och vattnet är fortfarande oroligt
+    const VAGOR = [[3.1, 2.2, 0.37, 0.3], [-2.6, 3.4, -0.45, 1.7], [4.0, -1.3, 0.52, 4.1], [-1.7, -3.9, -0.31, 2.6]];
     function virvla(x, y, styrka) {
       if (virvlar.length > 7) virvlar.shift();
       virvlar.push({ x, y, s: styrka, r: slump(0.25, 0.5) });
     }
-    function strom(x, y, medVirvlar) {
-      const r2 = x * x + y * y;
+    function strom(x, y, medVirvlar, z = 0) {
+      // Vattnets vägg ligger precis där flingorna möter glaset
+      const r2 = (x * x + y * y) / 0.9409;
       const vagg = Math.max(0, 1 - r2 * r2);
+      // Närmast det främre och bakre glaset rör sig vattnet trögare
+      const djup = 1 - 0.5 * z * z;
       // Snurret: farten runt kulan blir 1,3·rotation·r·(1 - r⁴)
-      let p = -rotation * 0.65 * (r2 - r2 * r2 * r2 / 3);
+      const p = -djup * rotation * 0.65 * (r2 - r2 * r2 * r2 / 3);
       // Svepet: en ström tvärs genom mitten som vänder tillbaka längs glaset
-      let q = svepX * y - svepY * x;
+      let q = (svepX * y - svepY * x) * djup;
       if (medVirvlar) {
         for (const v of virvlar) {
           const dx = x - v.x, dy = y - v.y;
-          q += v.s * v.r * 0.5 * Math.exp(-(dx * dx + dy * dy) / (v.r * v.r));
+          q += djup * v.s * v.r * 0.5 * Math.exp(-(dx * dx + dy * dy) / (v.r * v.r));
         }
       }
+      // De mjuka strömvirvlarna
+      let t = 0;
+      for (const w of VAGOR) t += Math.sin(w[0] * x + w[1] * y + 0.75 * w[0] * z + w[2] * klocka + w[3]);
+      q += t * (0.15 + oro) * 0.03;
       return p + q * vagg;
     }
     const E = 0.01;
     const gauss = () => Math.sqrt(-2 * Math.log(Math.random() + 1e-9)) * Math.cos(Math.PI * 2 * Math.random());
-    function flode(x, y, medVirvlar = true) {
+    function flode(x, y, medVirvlar = true, z = 0) {
       return [
-        (strom(x, y + E, medVirvlar) - strom(x, y - E, medVirvlar)) / (2 * E),
-        -(strom(x + E, y, medVirvlar) - strom(x - E, y, medVirvlar)) / (2 * E),
+        (strom(x, y + E, medVirvlar, z) - strom(x, y - E, medVirvlar, z)) / (2 * E),
+        -(strom(x + E, y, medVirvlar, z) - strom(x - E, y, medVirvlar, z)) / (2 * E),
       ];
     }
     function skaka(styrka, rx = 0, ry = 0) {
       for (let i = 0; i < 3; i++) virvla(slump(-0.7, 0.7), slump(-0.6, 0.6), slump(-1.5, 1.5) * styrka);
       rotation += slump(-1, 1) * styrka * 0.8;
+      oro = Math.min(1, oro + styrka * 0.3);
       svepX += rx; svepY += ry;
       skvalp = Math.min(1, skvalp + styrka * 0.6);
       // En skakning river upp snön från marken, mer ju hårdare
@@ -379,6 +394,7 @@ export default {
             if (Math.random() < 0.5) virvla(kx + slump(-0.2, 0.2), ky - 0.2, klamp(fart * 0.3, 0, 0.8) * runt);
             rotation = klamp(rotation + runt * fart * 0.03, -1.2, 1.2);
             skvalp = Math.min(1, skvalp + fart * 0.01);
+            oro = Math.min(1, oro + fart * 0.01);
           }
         }
         forra = { x: wx, y: wy, t: e.timeStamp };
@@ -406,11 +422,16 @@ export default {
         if (vr > 0.85) { v.x *= 0.85 / vr; v.y *= 0.85 / vr; }
       }
       rotation *= Math.exp(-dt / 2.5);
+      klocka += dt;
+      oro *= Math.exp(-dt / 5);
+      // Flingornas egen drift ändras mjukt, aldrig ryckigt
+      const driftK = Math.sqrt(2 * Math.max(0, dt) / 1.2) * (0.02 + 0.1 * oro);
+      const driftA = Math.exp(-Math.max(0, dt) / 1.2);
       svepX *= Math.exp(-dt / 0.35); svepY *= Math.exp(-dt / 0.35);
       skvalp *= Math.exp(-dt * 1.5);
 
       flingor.forEach((f, i) => {
-        const [ux, uy] = flode(f.x, f.y);
+        const [ux, uy] = flode(f.x, f.y, true, f.z);
         const flodesFart = Math.hypot(ux, uy);
         if (f.vila) {
           if (flodesFart > 0.12 + 0.1 * (i % 3)) {
@@ -427,11 +448,11 @@ export default {
         // flingor som snurrar runt inte glider utåt av räknefel.
         const broms = Math.exp(-dt / 0.5);
         f.vx *= broms; f.vy *= broms;
-        const [mx, my] = flode(f.x + ux * dt * 0.5, f.y + uy * dt * 0.5);
-        // Där vattnet rör sig är det lite oroligt, och det blandar snön jämnt i kulan
-        const oro = Math.sqrt(2 * (0.001 + 0.04 * Math.min(1, flodesFart)) * Math.max(0, dt));
-        f.x += (mx + f.vx + tyngd[0] * f.fall + Math.sin(tid * 0.7 + i) * 0.01) * dt + gauss() * oro;
-        f.y += (my + f.vy + tyngd[1] * f.fall + Math.cos(tid * 0.6 + i * 1.3) * 0.01) * dt + gauss() * oro;
+        const [mx, my] = flode(f.x + ux * dt * 0.5, f.y + uy * dt * 0.5, true, f.z);
+        f.wx = f.wx * driftA + gauss() * driftK;
+        f.wy = f.wy * driftA + gauss() * driftK;
+        f.x += (mx + f.vx + f.wx + tyngd[0] * f.fall) * dt;
+        f.y += (my + f.vy + f.wy + tyngd[1] * f.fall) * dt;
         // Glasväggen: vattnet strömmar bara längs glaset, så flingan glider av
         const rr = Math.hypot(f.x, f.y);
         if (rr > 0.97) {
@@ -452,7 +473,8 @@ export default {
         data[i * 4] = mitt.x + f.x * R;
         data[i * 4 + 1] = mitt.y + f.y * R;
         data[i * 4 + 2] = f.storlek;
-        data[i * 4 + 3] = f.ljus * (f.vila ? 0.55 : 1);
+        // Flingor längre bak i kulan syns lite svagare
+        data[i * 4 + 3] = f.ljus * (0.85 - 0.15 * f.z) * (f.vila ? 0.55 : 1);
       }
 
       spelaVidare();

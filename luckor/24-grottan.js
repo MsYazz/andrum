@@ -216,6 +216,35 @@ void main() {
   frag = vec4(v_f * k * u_synlig, 1.0);
 }`;
 
+// Kortets stil följer med rummet, så att den alltid passar ihop med koden
+const KORT_STIL = `
+.grottkort {
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: calc(env(safe-area-inset-top) + 70px) 22px calc(env(safe-area-inset-bottom) + 24px);
+  background: radial-gradient(100% 70% at 50% 45%, rgba(10, 6, 8, 0.35), rgba(6, 4, 8, 0.75));
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+.grottkort.syns { opacity: 1; }
+.grottkort .kort { width: 100%; max-width: 340px; text-align: center; }
+.grottkort .text p {
+  margin: 0 0 0.9rem;
+  line-height: 1.55;
+  font-size: min(1.05rem, 4.2vw);
+  color: #3a2618;
+}
+.grottkort .text { margin-bottom: 1.3rem; }
+`;
+const KORT_NYCKEL = 'andrum.julkort';
+const KORT_TEXT = [
+  'Jag hoppas att din julafton blir fin och stämningsfull.',
+  'Men om den ger för många intryck, så är du alltid välkommen att göra reträtt hit, in i din grotta. Här är det lugnt, och här behöver du ingenting.',
+];
+
 export default {
   start(duk, scen) {
     const gl = skapaGL(duk);
@@ -425,6 +454,36 @@ export default {
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, LJUS);
       gl.disable(gl.BLEND);
     });
+
+    // Julkortet: första gången grottan öppnas hänger ett kort framför den, medan
+    // grottan sakta tonar fram bakom. Ett tryck på knappen lägger undan det.
+    let kortVisat = false;
+    try { kortVisat = localStorage.getItem(KORT_NYCKEL) === 'sett'; } catch {}
+    if (!kortVisat) {
+      const kort = document.createElement('div');
+      kort.className = 'lucka-ui grottkort';
+      kort.innerHTML = `
+        <div class="kort">
+          <div class="tagg">
+            <div class="snore" aria-hidden="true"></div>
+            <p class="till">Till Vivan</p>
+            <div class="text">${KORT_TEXT.map((r) => `<p>${r}</p>`).join('')}</div>
+            <p class="halsning">God jul, Vivan!<br><span>från Ella</span></p>
+          </div>
+          <button class="intro-knapp">Gå in i grottan</button>
+        </div>`;
+      const stil = document.createElement('style');
+      stil.className = 'lucka-ui';
+      stil.textContent = KORT_STIL;
+      scen.append(stil, kort);
+      setTimeout(() => kort.classList.add('syns'), 1400);
+      kort.querySelector('button').addEventListener('click', () => {
+        try { localStorage.setItem(KORT_NYCKEL, 'sett'); } catch {}
+        kort.classList.remove('syns');
+        kort.style.pointerEvents = 'none';
+        setTimeout(() => kort.remove(), 1300);
+      });
+    }
 
     return stangning({ ljud: l, stoppa, gl });
   },

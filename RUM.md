@@ -38,7 +38,7 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 21 | **Längsta natten** | Vintersolståndet. Drar från stjärna till stjärna och gör egna stjärnbilder som klingar. Lutningen förskjuter himlen mot skogen | Instansierade ljuspunkter, parallax, gyro | Klar |
 | 22 | **Snögloben** | Skakar, lutar eller sveper över en snöglob med en röd stuga och en tänd gran, och snön virvlar upp och singlar sakta ner. Ett tryck på foten drar upp speldosan | Virvelflöde, tyngd från rörelsesensorn, speldosa | Klar |
 | 23 | **Degen** | Bakdag. Trycker och knådar en mjuk saffransdeg på ett mjölat bakbord. Groparna fylls långsamt igen när degen jäser, och ett tryck på bordet strör mjöl | Höjdfält där det undanträngda väller upp, mjölskikt | Klar |
-| 24 | **Grottan** | Julafton. Ett varmt grottrum med en eld, en porlande bäck och eldflugor, och en vinternatt med en klar stjärna utanför. Ett stilla finger samlar eldflugorna, ett tryck i elden ger gnistor och i bäcken ringar. En plats att vila på utan dåligt samvete | Allt tillsammans | Klar |
+| 24 | **Grottan** | Julafton. Första gången hänger ett julkort från Ella framför grottan. Ett varmt grottrum med en eld, en porlande bäck och eldflugor, och en vinternatt med en klar stjärna utanför. Ett stilla finger samlar eldflugorna, ett tryck i elden ger gnistor och i bäcken ringar. En plats att vila på utan dåligt samvete | Allt tillsammans | Klar |
 
 ## Reserver
 
