@@ -268,29 +268,32 @@ export default {
     l.kallor.push(drag);
 
     // ---------- Fingret ----------
-    let forra = null;
+    // Varje finger minns sin egen förra plats, så att två fingrar ger två egna ringar
+    // och inte en rad droppar tvärs över vattnet mellan dem.
+    const forra = new Map();
     let dragFart = 0;
     const tillRut = (x, y) => [x / duk.clientWidth, y / duk.clientHeight];
     fingrar(duk, {
-      ner: (x, y) => {
+      ner: (x, y, id) => {
         const [rx, ry] = tillRut(x, y);
         droppe(rx, ry, 1);
         plipp(1);
-        forra = { x: rx, y: ry };
+        forra.set(id, { x: rx, y: ry });
       },
-      drag: (x, y) => {
+      drag: (x, y, id) => {
         const [rx, ry] = tillRut(x, y);
-        if (forra) {
-          const d = Math.hypot(rx - forra.x, (ry - forra.y) * asp());
+        const f = forra.get(id);
+        if (f) {
+          const d = Math.hypot(rx - f.x, (ry - f.y) * asp());
           const steg = Math.ceil(d / 0.01);
           for (let s = 1; s <= steg; s++) {
-            droppe(forra.x + ((rx - forra.x) * s) / steg, forra.y + ((ry - forra.y) * s) / steg, 0.12, 1.8);
+            droppe(f.x + ((rx - f.x) * s) / steg, f.y + ((ry - f.y) * s) / steg, 0.12, 1.8);
           }
           dragFart = Math.min(1, dragFart + d * 8);
         }
-        forra = { x: rx, y: ry };
+        forra.set(id, { x: rx, y: ry });
       },
-      upp: () => { forra = null; },
+      upp: (x, y, id) => { forra.delete(id); },
     });
 
     // ---------- Ritslinga ----------
