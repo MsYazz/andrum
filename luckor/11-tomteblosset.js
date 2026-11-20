@@ -109,6 +109,18 @@ float segment(vec2 p, vec2 a, vec2 b, out float h) {
   return length(pa - ba * h);
 }
 
+// Är p inuti fyrhörningen a, b, c, d (konvex, moturs)? Med d = c blir det en triangel.
+float kant(vec2 p, vec2 a, vec2 b) { return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x); }
+bool inuti(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
+  return kant(p, a, b) >= 0.0 && kant(p, b, c) >= 0.0 && kant(p, c, d) >= 0.0 && kant(p, d, a) >= 0.0;
+}
+// En punkt på stugans gavel flyttad bakåt längs långsidan, mot en flyktpunkt till höger
+// i ögonhöjd. Det som är under ögonhöjden stiger bakåt och det ovanför sjunker.
+vec2 bakat(vec2 q, float m0) {
+  float horisont = m0 + 0.06;
+  return vec2(q.x + 0.065, q.y + (horisont - q.y) * 0.16);
+}
+
 // Ett tomtebloss: blank ståltråd som handtag, svart sats ovanför, och ovanför glöden
 // den utbrända tråden som är het närmast glöden och sedan svalnar till grå aska.
 vec3 stav(vec3 c, vec2 p, vec2 B, vec2 T, float brand, float glod, float alfa) {
@@ -145,28 +157,51 @@ void main() {
 
   // Vintermörker, lite ljusare mot marken där snön ligger
   vec3 c = mix(vec3(0.03, 0.035, 0.06), vec3(0.008, 0.01, 0.02), uv.y);
-  float mark = 0.22 + 0.015 * sin(p.x * 5.0 + 1.0) + 0.01 * sin(p.x * 13.0);
-  if (p.y < mark) c = vec3(0.07, 0.08, 0.11) * (0.85 + 0.2 * fbm(p * vec2(8.0, 30.0)));
-  // En liten stuga långt bort. Fasaden är faluröd med lodräta bräder och vita knutar,
-  // och taket har snö. I mörkret syns den nästan inte, men blossets sken lyser upp den
-  // ytterst svagt. Stugan är långt borta, så skenet faller jämnt och svagt över den.
+  // En liten stuga långt bort, med gaveln mot oss och långsidan som löper snett bakåt åt
+  // höger. Fasaden är faluröd med lodräta bräder och vita knutar, och taket har snö. I
+  // mörkret syns den nästan inte, men blossets sken lyser upp den ytterst svagt. Marken
+  // är plan där stugan står, och snön ligger en bit upp mot väggarna.
   float m0 = 0.22 + 0.015 * sin(2.0) + 0.01 * sin(2.6);
-  float sx = abs(p.x - 0.2);
-  float vagg = step(mark, p.y) * step(p.y, m0 + 0.13) * step(sx, 0.075);
-  float tak = step(m0 + 0.13, p.y) * step(p.y, m0 + 0.13 + 0.065 * (1.0 - sx / 0.092)) * step(sx, 0.092);
-  float stugLjus = exp(-dot(p - u_punkt, p - u_punkt) * 1.2) * 0.09 * u_glod;
-  if (vagg > 0.0) {
-    float fog = smoothstep(0.1, 0.0, abs(fract(p.x * 150.0) - 0.5) - 0.38);
-    vec3 farg = vec3(0.45, 0.12, 0.09) * (1.0 - 0.45 * fog) * (0.9 + 0.2 * hash(vec2(floor(p.x * 150.0), 3.0)));
-    farg = mix(farg, vec3(0.75, 0.74, 0.7), step(0.068, sx));
-    c = vec3(0.018, 0.016, 0.022) + farg * stugLjus;
-  }
-  if (tak > 0.0) c = vec3(0.04, 0.045, 0.06) + vec3(0.7, 0.75, 0.85) * stugLjus * 0.8;
+  float mark = 0.22 + 0.015 * sin(p.x * 5.0 + 1.0) + 0.01 * sin(p.x * 13.0);
+  mark = mix(mark, m0 + 0.002, smoothstep(0.05, 0.11, p.x) * smoothstep(0.37, 0.31, p.x));
+  if (p.y < mark) c = vec3(0.07, 0.08, 0.11) * (0.85 + 0.2 * fbm(p * vec2(8.0, 30.0)));
 
-  // Stugans varma fönster
-  vec2 fo = (p - vec2(0.2, mark + 0.08)) / vec2(0.018, 0.022);
+  float yb = m0 - 0.008, ye = m0 + 0.085, x0 = 0.13, x1 = 0.245;
+  vec2 L0 = vec2(x0, yb), R0 = vec2(x1, yb), Re = vec2(x1, ye), Le = vec2(x0, ye);
+  vec2 A = vec2((x0 + x1) * 0.5, m0 + 0.145);
+  vec2 lutA = normalize(Re - A);
+  vec2 Ro = Re + lutA * 0.009, Lo = Le + vec2(-lutA.x, lutA.y) * 0.009;
+  vec2 B0 = bakat(R0, m0), B1 = bakat(Re, m0), BRo = bakat(Ro, m0), BA = bakat(A, m0);
+  float stugLjus = exp(-dot(p - u_punkt, p - u_punkt) * 1.2) * 0.09 * u_glod;
+  if (p.y >= mark) {
+    float hh;
+    bool gavel = inuti(p, L0, R0, Re, Le) || inuti(p, Le, Re, A, A);
+    bool langsida = inuti(p, R0, B0, B1, Re);
+    bool tak = inuti(p, A, Ro, BRo, BA);
+    // Snökanten längs gavelns vänstra takfall
+    bool takkant = segment(p, Lo, A, hh) < 0.0035;
+    if (gavel) {
+      float fog = smoothstep(0.1, 0.0, abs(fract(p.x * 160.0) - 0.5) - 0.38);
+      vec3 farg = vec3(0.45, 0.12, 0.09) * (1.0 - 0.45 * fog) * (0.9 + 0.2 * hash(vec2(floor(p.x * 160.0), 3.0)));
+      float knut = step(p.x, x0 + 0.004) + step(x1 - 0.004, p.x) + step(segment(p, Le, A, hh), 0.0025) + step(segment(p, A, Re, hh), 0.0025);
+      farg = mix(farg, vec3(0.75, 0.74, 0.7), min(knut, 1.0));
+      c = vec3(0.018, 0.016, 0.022) + farg * stugLjus;
+    }
+    if (langsida) {
+      float t = (p.x - x1) / (B0.x - x1);
+      float fog = smoothstep(0.1, 0.0, abs(fract(t * 6.0) - 0.5) - 0.36);
+      vec3 farg = vec3(0.45, 0.12, 0.09) * 0.7 * (1.0 - 0.45 * fog);
+      farg = mix(farg, vec3(0.7, 0.69, 0.66) * 0.75, step(0.96, t));
+      c = vec3(0.013, 0.012, 0.017) + farg * stugLjus;
+    }
+    if (tak || takkant) c = vec3(0.04, 0.045, 0.06) + vec3(0.7, 0.75, 0.85) * stugLjus * 0.8;
+  }
+
+  // Stugans varma fönster, mitt på gaveln
+  vec2 fc = vec2((x0 + x1) * 0.5, m0 + 0.045);
+  vec2 fo = (p - fc) / vec2(0.016, 0.02);
   if (max(abs(fo.x), abs(fo.y)) < 1.0) c = vec3(0.5, 0.3, 0.12) * (abs(fo.x) < 0.08 || abs(fo.y) < 0.08 ? 0.4 : 1.0);
-  c += vec3(0.4, 0.22, 0.08) * exp(-dot(p - vec2(0.2, mark + 0.08), p - vec2(0.2, mark + 0.08)) * 300.0) * 0.15;
+  c += vec3(0.4, 0.22, 0.08) * exp(-dot(p - fc, p - fc) * 300.0) * 0.15;
 
   // Blossets sken lyser upp omgivningen
   vec2 tp = u_punkt;
