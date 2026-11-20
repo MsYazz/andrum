@@ -301,6 +301,7 @@ export default {
     const FORM = [[0, 0.12], [0.2, 0.15], [-0.14, 0.14], [0.1, 0.13]];
     const GREPP = 0.36;               // från spetsen till fingret, längs kvisten, bakom sidokvisten
     const BAS_VINKEL = Math.atan2(-0.89, 0.45);
+    const MAX_KANT = 25 * Math.PI / 180;   // så långt kvisten vrider sig själv vid en kant, åt varje håll
     const asp = () => duk.clientHeight / duk.clientWidth;
     // Greppets läge (där fingret håller), och var den ska vara
     const pinne = { x: 0.6, y: 0.3 * asp(), mx: 0.6, my: 0.3 * asp(), nere: false, lage: 'ingen', ox: 0, oy: 0, lyft: 1, kant: 0, kantMal: 0, avtryck: 1 };
@@ -390,7 +391,7 @@ export default {
       const bx = pp[0] - pinne.x, by = pp[1] - pinne.y, bl = Math.hypot(bx, by) || 1;
       const vx = bx / bl + ex * 1.6, vy = by / bl + ey * 1.6;
       const v = Math.atan2(vy, vx) - Math.atan2(by, bx);
-      return Math.max(-2.2, Math.min(2.2, Math.atan2(Math.sin(v), Math.cos(v))));
+      return Math.max(-MAX_KANT, Math.min(MAX_KANT, Math.atan2(Math.sin(v), Math.cos(v))));
     }
     fingrar(duk, {
       ner: (x, y) => {
