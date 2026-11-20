@@ -56,6 +56,8 @@ uniform sampler2D u_former; // varje fönsterljus form: r vänster, g höger, en
 uniform float u_varme;      // hur många ljus som brinner i fönstret
 uniform float u_rors;       // hur mycket stearinet rörs om
 uniform vec2 u_sax;         // hur öppen saxen är, och hur mycket den lyser
+uniform vec3 u_saxL;        // saxens led och riktning: x, y, vinkel
+uniform vec2 u_klipp;       // där veken klipptes, räknat från pinnen, och hur långt ljuset har fallit
 ${BRUS}
 
 const float YV = ${YV.toFixed(3)};
@@ -169,7 +171,7 @@ void main() {
     float topp = bas + 0.02 + L.y;
     float lx = p.x - L.x;
     if (p.y > bas + 0.015 && p.y < topp + 0.003 && abs(lx) < 0.03) {
-      float v = mix(${V0.toFixed(2)}, 1.0, clamp((topp - p.y) / L.y, 0.0, 1.0));
+      float v = clamp((topp - p.y) / L.y, 0.0, 1.0);
       vec2 fu = vec2(v * (1.0 - 1.0 / ${FN}.0) + 0.5 / ${FN}.0, (fro + 0.5) / 8.0);
       vec4 fo = texture(u_former, fu);
       float sida = smoothstep(-0.001, 0.001, lx);
@@ -281,6 +283,10 @@ void main() {
     float ca = cos(u_ljus.w), sa = sin(u_ljus.w);
     vec2 d0 = p - hp;
     vec2 q = vec2(ca * d0.x + sa * d0.y, -sa * d0.x + ca * d0.y) + hp;
+    // När veken är klippt faller ljuset, och allt nedanför klippet, en bit nedåt
+    float klipp = u_klipp.x;
+    vec2 qv = q;
+    q.y += u_klipp.y;
     float v = (u_ljus.y - q.y) / Lh;
     float dx = q.x - ljusX;
     // Profilen: egen radie åt vänster och höger, så att ljuset blir knöligt
@@ -320,6 +326,8 @@ void main() {
       float d = smoothstep(1.0, 0.85, e);
       if (d > inne) { inne = d; hv = max(hv, u_spets.z); ny = -0.4; }
     }
+    // Det som satt ovanför klippet följer inte med ljuset
+    if (klipp > 0.0) inne *= step(klipp, hp.y - q.y);
     // Bara det som är ovanför stearinets yta syns
     inne *= smoothstep(YV - 0.001, YV + 0.003, p.y);
     if (inne > 0.0) {
@@ -343,6 +351,11 @@ void main() {
     }
     // Veken mellan ljuset och pinnen
     float veke = smoothstep(0.0016, 0.0007, abs(dx)) * step(u_ljus.y - 0.002, q.y) * step(q.y, hp.y);
+    // Efter klippet: en vekstump hänger kvar på pinnen, och en kort veke sitter kvar på ljuset
+    if (klipp > 0.0) {
+      veke = smoothstep(0.0016, 0.0007, abs(dx)) * (step(hp.y - klipp, qv.y) * step(qv.y, hp.y)
+           + step(u_ljus.y - 0.002, q.y) * step(q.y, hp.y - klipp));
+    }
     c = mix(c, vec3(0.9, 0.86, 0.76) * (lys * 0.7 + 0.2), veke * u_alfa);
     // Pinnen hon håller veken i
     float pd = abs(p.y - hp.y);
@@ -397,11 +410,11 @@ void main() {
 
   // ---- Saxen: en gammal sax helt i stål, som ligger på spisen bredvid kastrullen ----
   {
-    vec2 led = vec2(${SAX[0]}, ${SAX[1]});
+    vec2 led = u_saxL.xy;
     // Saxens sken när ljuset är lagom tjockt
     vec2 dg = (p - led - vec2(-0.005, 0.0)) / vec2(0.15, 0.06);
     c += vec3(1.0, 0.75, 0.45) * exp(-dot(dg, dg) * 2.0) * u_sax.y * (0.1 + 0.05 * sin(t * 2.2));
-    vec2 rikt = normalize(vec2(-1.0, 0.16));
+    vec2 rikt = vec2(cos(u_saxL.z), sin(u_saxL.z));
     // Slitet stål: matt, med mörkare fläckar av ålder
     float patina = fbm3(p * 70.0);
     vec3 stal = vec3(0.6, 0.61, 0.62) * (0.82 + 0.25 * fbm3(p * 160.0));
@@ -469,7 +482,7 @@ export default {
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
     const u = platser(gl, prog, ['u_res', 'u_tid', 'u_synlig', 'u_prof', 'u_ljus', 'u_spets', 'u_alfa',
-      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors', 'u_snitt', 'u_former', 'u_sax']);
+      'u_ring', 'u_dr', 'u_fonster', 'u_varme', 'u_rors', 'u_snitt', 'u_former', 'u_sax', 'u_saxL', 'u_klipp']);
     gl.useProgram(prog);
     const tom = gl.createVertexArray();
 
@@ -496,6 +509,8 @@ export default {
     let rors = 0, forraBotten = 9;
     let dopp = 0;                        // alla dopp sedan rummet öppnades
     let ljusDopp = 0;                    // dopp på ljuset som hänger nu
+    let toppDopp = 1;                    // det högsta stället på ljuset som har varit nere i stearinet
+    let klippDist = 0, klippFall = 0;    // där veken klipptes, och hur långt ljuset har fallit
 
     let antal = 0;
     try { antal = Math.max(0, Math.floor(Number(localStorage.getItem(NYCKEL)) || 0)); } catch {}
@@ -515,9 +530,23 @@ export default {
           return bas * (1 + 0.06 * Math.sin(v * f + a) + kh * Math.exp(-((v - kv) ** 2) / 0.006));
         });
       });
-      return { l: sidor[0], r: sidor[1], spets: 0.015 + 0.015 * slp(9) };
+      return beskar({ l: sidor[0], r: sidor[1], spets: 0.015 + 0.015 * slp(9) });
     }
-    const formHojd = (f) => (1 - V0) * LANGD * SKALA + (f.spets || 0) * SKALA;
+    // Ett ljus i fönstret består bara av den doppade delen. Den tunna, bara veken ovanför
+    // stearinet skärs bort, så att lågan sitter på ljuset och inte uppe i luften.
+    function beskar(f) {
+      if (f.fran !== undefined) return f;
+      let j = 0;
+      while (j < FN - 2 && (f.l[j] + f.r[j]) * 0.5 < VEKE * 2.5) j++;
+      const fran = Math.max(V0, j / (FN - 1));
+      const om = (a) => Array.from({ length: FN }, (_, k) => {
+        const x = (fran + (1 - fran) * (k / (FN - 1))) * (FN - 1), i = Math.floor(x), t = x - i;
+        return a[i] + ((a[Math.min(FN - 1, i + 1)] ?? a[i]) - a[i]) * t;
+      });
+      return { l: om(f.l), r: om(f.r), spets: f.spets || 0, fran };
+    }
+    former = former.map((f) => (f ? beskar(f) : f));
+    const formHojd = (f) => (1 - f.fran) * LANGD * SKALA + (f.spets || 0) * SKALA;
     const fonster = FONSTER_X.map((x, i) => {
       if (i < antal && !former[i]) former[i] = pahittadForm(i);
       return {
@@ -529,7 +558,7 @@ export default {
     function nollstall() {
       for (let s = 0; s < 2; s++) { fast[s].fill(VEKE); film[s].fill(0); }
       varme.fill(0); nere.fill(0); vidDopp.fill(0);
-      spets = 0; droppe = null; ljusDopp = 0;
+      spets = 0; droppe = null; ljusDopp = 0; toppDopp = 1; klippDist = 0; klippFall = 0;
       vinkel = 0; vinkelFart = 0;
       ljusForm = ojamnhet(); doppForm = ojamnhet();
     }
@@ -609,20 +638,79 @@ export default {
 
     // ---------- Saxen ----------
     let saxOppen = 0.06, saxTid = -1, saxSken = 0, saxTryck = null, redo = false, saxLedVisad = false;
+    const SAX_VILA = Math.atan2(0.16, -1);
+    const saxL = { x: SAX[0], y: SAX[1], a: SAX_VILA };
+    let saxFlykt = null;                 // { t, fran: { x, y, a } } medan saxen är på väg att klippa
     const paSaxen = (wx, wy) => Math.hypot((wx - SAX[0] - 0.01) / 1.8, wy - SAX[1]) < 0.06;
     function klipp() {
-      if (fas !== 'doppa' || saxTid >= 0) return;
-      saxTid = 0;
-      klippLjud();
+      if (fas !== 'doppa' || saxTid >= 0 || saxFlykt) return;
       grepp = null;
-      // För få dopp, eller ljuset nere i stearinet: saxen klipper bara i luften
+      // För få dopp, eller ljuset nere i stearinet: saxen klipper bara i luften där den ligger
       const botten = pinne.y - (HALS + LANGD) * Math.cos(vinkel);
-      if (ljusDopp < MINDOPP || botten < YV + 0.01) return;
-      fas = 'klar'; fasTid = 0;
+      if (ljusDopp < MINDOPP || botten < YV + 0.01) { saxTid = 0; klippLjud(); return; }
+      // Annars flyger saxen upp till veken, öppnas på vägen och klipper strax ovanför
+      // det högsta stället hon har doppat
+      fas = 'klipper';
       droppe = null;
       led.classList.remove('syns');
-      klocka(587.3, { till: ut, eko, styrka: 0.028, ansats: 0.2, langd: 5, nar: ctx.currentTime + 0.25 });
-      klocka(880, { till: ut, eko, styrka: 0.018, ansats: 0.25, langd: 5, nar: ctx.currentTime + 0.75 });
+      saxFlykt = { t: 0, fran: { ...saxL } };
+    }
+    // Var stearinet börjar synas på ljuset: det högsta stället som är märkbart tjockare
+    // än den bara veken. Högst upp i det doppade har stearinet runnit ner, så där är
+    // lagret nästan osynligt.
+    function vaxTopp() {
+      for (let i = 0; i < N; i++) {
+        if ((data[i * 4] + data[i * 4 + 1]) * 0.5 > VEKE * 2.5) return Math.max(toppDopp, i / (N - 1));
+      }
+      return toppDopp;
+    }
+    // Var saxen ska klippa: vinkelrätt mot veken, strax ovanför stearinet
+    function klippMal() {
+      const dist = Math.max(HALS * 0.5, HALS + vaxTopp() * LANGD - 0.012);
+      const [cx, cy] = punkt(dist);
+      const a = Math.PI + vinkel;
+      return { dist, x: cx - Math.cos(a) * 0.046, y: cy - Math.sin(a) * 0.046, a };
+    }
+    const vinkelMellan = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * t; };
+    function saxenFlyger(dt) {
+      if (!saxFlykt) return;
+      const F = saxFlykt;
+      F.t += dt;
+      const t = F.t;
+      const mal2 = klippMal();
+      if (t < 0.85) {
+        // Upp till veken i en mjuk båge, medan bladen öppnas
+        const e = mjuk(0, 0.85, t);
+        saxL.x = F.fran.x + (mal2.x - F.fran.x) * e + Math.sin(Math.PI * e) * 0.06;
+        saxL.y = F.fran.y + (mal2.y - F.fran.y) * e;
+        saxL.a = vinkelMellan(F.fran.a, mal2.a, e);
+        saxOppen = 0.06 + 0.5 * mjuk(0, 0.7, t);
+      } else if (t < 1.1) {
+        // Ett ögonblick vid veken, och så klipper den
+        saxL.x = mal2.x; saxL.y = mal2.y; saxL.a = mal2.a;
+        if (t >= 0.98) {
+          if (!F.klippt) {
+            F.klippt = true;
+            klippLjud();
+            klippDist = mal2.dist;
+            fas = 'klar'; fasTid = 0;
+            klocka(587.3, { till: ut, eko, styrka: 0.028, ansats: 0.2, langd: 5, nar: ctx.currentTime + 0.25 });
+            klocka(880, { till: ut, eko, styrka: 0.018, ansats: 0.25, langd: 5, nar: ctx.currentTime + 0.75 });
+          }
+          saxOppen = Math.max(0, 0.56 - ((t - 0.98) / 0.08) * 0.56);
+        }
+        F.vid = { x: saxL.x, y: saxL.y, a: saxL.a };
+      } else if (t < 2.2) {
+        // Tillbaka till spisen
+        const e = mjuk(1.1, 2.2, t);
+        saxL.x = F.vid.x + (SAX[0] - F.vid.x) * e - Math.sin(Math.PI * e) * 0.04;
+        saxL.y = F.vid.y + (SAX[1] - F.vid.y) * e;
+        saxL.a = vinkelMellan(F.vid.a, SAX_VILA, e);
+        saxOppen += (0.06 - saxOppen) * Math.min(1, dt * 4);
+      } else {
+        saxL.x = SAX[0]; saxL.y = SAX[1]; saxL.a = SAX_VILA;
+        saxFlykt = null;
+      }
     }
 
     // ---------- Fingret ----------
@@ -697,12 +785,14 @@ export default {
     gl.uniform1i(u.u_former, 1);
     // Det färdiga ljusets form, nedräknad till FN punkter per sida
     function sparaForm(plats) {
+      // Bara den doppade delen sparas, från strax ovanför det högsta stället hon doppat
+      const fran = Math.min(0.9, Math.max(0, vaxTopp() - 0.01));
       const ta = (s) => Array.from({ length: FN }, (_, j) => {
-        const x = (j / (FN - 1)) * (N - 1), i = Math.floor(x), t = x - i;
+        const x = (fran + (1 - fran) * (j / (FN - 1))) * (N - 1), i = Math.floor(x), t = x - i;
         const a = data[i * 4 + s], b = data[Math.min(N - 1, i + 1) * 4 + s];
         return Math.round((a + (b - a) * t) * 1e5) / 1e5;
       });
-      former[plats] = { l: ta(0), r: ta(1), spets: Math.round(spets * 1e4) / 1e4 };
+      former[plats] = { l: ta(0), r: ta(1), spets: Math.round(spets * 1e4) / 1e4, fran: Math.round(fran * 1e3) / 1e3 };
       try { localStorage.setItem(FORM_NYCKEL, JSON.stringify(former)); } catch {}
       laddaFormer();
       fonster[plats].hojd = formHojd(former[plats]);
@@ -761,6 +851,7 @@ export default {
         const v = i / (N - 1);
         const y = pinne.y - (HALS + v * LANGD) * cosV;
         if (y < YV) {
+          if (v < toppDopp) toppDopp = v;
           if (!nere[i]) {
             nere[i] = 1;
             vidDopp[i] = varme[i];
@@ -891,9 +982,9 @@ export default {
           setTimeout(() => led.classList.remove('syns'), 6000);
         }
       } else if (fas === 'klar') {
-        // Ljuset lyfts och tonar bort, och tänds i fönstret
+        // Det avklippta ljuset faller en bit och tonar bort, och tänds i fönstret
         fasTid += dt;
-        mal.y = pinne.y + 0.12 * dt;
+        klippFall = 0.05 * mjuk(0, 0.45, fasTid);
         alfa = 1 - mjuk(1.0, 2.4, fasTid);
         if (fasTid > 1.6 && fasTid - dt <= 1.6) {
           const plats = antal % FONSTER_X.length;
@@ -919,8 +1010,11 @@ export default {
         if (fasTid > 1.4) fas = 'doppa';
       }
 
-      // Saxen: bladen öppnas och klipper ihop
-      if (saxTid >= 0) {
+      // Saxen: flyger upp och klipper, eller klipper i luften där den ligger
+      saxenFlyger(dt);
+      if (saxFlykt) {
+        // saxenFlyger sköter bladen
+      } else if (saxTid >= 0) {
         saxTid += dt;
         saxOppen = saxTid < 0.08 ? 0.06 + (saxTid / 0.08) * 0.44 : Math.max(0.0, 0.5 - ((saxTid - 0.08) / 0.08) * 0.5);
         if (saxTid > 0.6) { saxTid = -1; }
@@ -965,6 +1059,8 @@ export default {
       gl.uniform1f(u.u_varme, Math.min(1, brinner / 4));
       gl.uniform1f(u.u_rors, rors);
       gl.uniform2f(u.u_sax, saxOppen, saxSken);
+      gl.uniform3f(u.u_saxL, saxL.x, saxL.y, saxL.a);
+      gl.uniform2f(u.u_klipp, klippDist, klippFall);
       ritaHelskarm(gl);
     });
 
