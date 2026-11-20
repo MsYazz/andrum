@@ -295,8 +295,7 @@ export default {
     // och sitter fast i fingret, och spetsen, en bit framför fingret, ristar i sanden
     // ända tills hon släpper. Tar hon på kvisten någon annanstans lyfter hon den i
     // stället och kan flytta den. Fri sand gör ingenting. Släpper hon svävar kvisten kvar.
-    // Tar hon i kvistens bakände kan hon svinga den runt spetsen och vinkla om den, till
-    // exempel för vänster hand. Flyttar hon kvisten nära en kant vrider den sig själv så
+    // Flyttar hon kvisten nära en kant vrider den sig själv så
     // att spetsen når ut mot kanten och skaftet hamnar inåt.
     // Kvistens form: vinklar och längder för varje del, från spetsen bakåt mot handen
     const FORM = [[0, 0.12], [0.2, 0.15], [-0.14, 0.14], [0.1, 0.13]];
@@ -304,13 +303,13 @@ export default {
     const BAS_VINKEL = Math.atan2(-0.89, 0.45);
     const asp = () => duk.clientHeight / duk.clientWidth;
     // Greppets läge (där fingret håller), och var den ska vara
-    const pinne = { x: 0.6, y: 0.3 * asp(), mx: 0.6, my: 0.3 * asp(), nere: false, lage: 'ingen', ox: 0, oy: 0, lyft: 1, vrid: 0, kant: 0, kantMal: 0, avtryck: 1 };
+    const pinne = { x: 0.6, y: 0.3 * asp(), mx: 0.6, my: 0.3 * asp(), nere: false, lage: 'ingen', ox: 0, oy: 0, lyft: 1, kant: 0, kantMal: 0, avtryck: 1 };
     const pp = new Float32Array(10), kvistData = new Float32Array(4), avtryckData = new Float32Array(4);
     let forra = null;
     let skrapFart = 0;
     // Räknar ut kvistens punkter så att greppet hamnar där pinne.x, pinne.y är
     function pinnPunkter() {
-      const vinkel = BAS_VINKEL + pinne.vrid + pinne.kant;
+      const vinkel = BAS_VINKEL + pinne.kant;
       const lok = [[0, 0]];
       let x = 0, y = 0, v = vinkel, kvist = null;
       FORM.forEach(([dv, l], i) => {
@@ -377,19 +376,6 @@ export default {
       pinne.y = klamp(klamp(y, 0.03, asp() - 0.03), 0.005 - by, asp() - 0.005 - by);
     }
     const foljFingret = () => hallInne(pinne.mx + pinne.ox, pinne.my + pinne.oy);
-    // Svingar kvisten runt spetsen: skaftet följer fingret och spetsen står still
-    let sving = null;
-    const vinkelTill = (fx, fy) => Math.atan2(pinne.my - fy, pinne.mx - fx);
-    function svinga() {
-      const d0 = vinkelTill(sving.tx, sving.ty) - sving.a0;
-      const d = Math.atan2(Math.sin(d0), Math.cos(d0));
-      const c = Math.cos(d), sn = Math.sin(d);
-      const gx = sving.tx + c * sving.gx - sn * sving.gy, gy = sving.ty + sn * sving.gx + c * sving.gy;
-      // Greppet måste stanna på skärmen, annars kan hon inte ta i det igen
-      if (gx < 0.03 || gx > 0.97 || gy < 0.03 || gy > asp() - 0.03) return;
-      pinne.x = gx; pinne.y = gy;
-      pinne.vrid = sving.vrid0 + d;
-    }
     // Nära en kant vill spetsen peka ut mot kanten. Räknar ut hur mycket kvisten ska vridas
     // för det, utifrån var greppet är.
     function kantVinkel() {
@@ -411,13 +397,7 @@ export default {
         if (pinne.nere) return;
         fingerTill(x, y);
         forra = null;
-        pinnPunkter();
         if (Math.hypot(pinne.mx - pinne.x, pinne.my - pinne.y) < 0.085) pinne.lage = 'rista';
-        else if (Math.hypot(pinne.mx - pp[8], pinne.my - pp[9]) < 0.07) {
-          pinne.lage = 'vrid';
-          sving = { tx: pp[0], ty: pp[1], gx: pinne.x - pp[0], gy: pinne.y - pp[1], vrid0: pinne.vrid, a0: 0 };
-          sving.a0 = vinkelTill(sving.tx, sving.ty);
-        }
         else if (avstandTillKvist(pinne.mx, pinne.my) < 0.035) pinne.lage = 'flytta';
         else { pinne.lage = 'ingen'; return; }
         pinne.nere = true;
@@ -428,7 +408,6 @@ export default {
       drag: (x, y) => {
         if (!pinne.nere) return;
         fingerTill(x, y);
-        if (pinne.lage === 'vrid') { svinga(); return; }
         foljFingret();
         // Ristar hela tiden så länge hon håller i avtrycket, för varje rörelse
         if (pinne.lage === 'rista') ristaTill();
@@ -500,9 +479,9 @@ export default {
       // ner till sanden. Den ristar först när den ligger rätt i handen.
       const rista = pinne.nere && pinne.lage === 'rista';
       // Medan hon flyttar kvisten vrider den sig mjukt mot närmaste kant. När den ristar
-      // eller svingas står vinkeln still, så att spetsen inte hoppar.
+      // står vinkeln still, så att spetsen inte hoppar.
       if (pinne.nere && pinne.lage === 'flytta') pinne.kantMal = kantVinkel();
-      if (!rista && pinne.lage !== 'vrid') {
+      if (!rista) {
         pinne.kant += (pinne.kantMal - pinne.kant) * Math.min(1, dt * 3);
         hallInne(pinne.x, pinne.y);
       }
