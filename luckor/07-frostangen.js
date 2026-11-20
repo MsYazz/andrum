@@ -122,10 +122,11 @@ export default {
           const px = (gx + 0.5) / FW - cx, py = ((gy + 0.5) / FH) * asp - cy;
           // Längs och tvärs foten
           const l = (px * rx + py * ry) / STEG_L, t = (px * nx + py * ny) / STEG_L;
-          // Sulan framtill är bredare, hälen baktill smalare, med ett smalt valv emellan
-          const sula = Math.hypot((l - 0.18) / 0.32, (t - 0.04 * sida) / 0.19);
+          // Sulan framtill är bredare, hälen baktill smalare, med ett smalt valv emellan.
+          // Sulan och valvet är vända så att skon ser ut att sitta på rätt fot.
+          const sula = Math.hypot((l - 0.18) / 0.32, (t + 0.04 * sida) / 0.19);
           const hal = Math.hypot((l + 0.3) / 0.2, t / 0.15);
-          const valv = Math.hypot(l / 0.3, (t + 0.06 * sida) / 0.1);
+          const valv = Math.hypot(l / 0.3, (t - 0.06 * sida) / 0.1);
           const d = Math.min(sula, hal, valv);
           if (d < 1.15) {
             const i = gy * FW + gx;
@@ -212,9 +213,14 @@ export default {
       forra = { x: wx, y: wy, rx, ry };
     }
     function hopp(ax, ay, bx, by) {
+      // Fötterna landar mitt emellan fingrarna, sida vid sida längs linjen mellan dem.
+      // Framåt är vinkelrätt mot den linjen, åt det håll som ligger närmast hur hon gick,
+      // eller uppåt på skärmen om hon inte har gått än.
       const mx = (ax + bx) / 2, my = (ay + by) / 2;
-      // Framåt är samma håll som förut, annars uppåt på skärmen
-      const rx = forra ? forra.rx : 0, ry = forra ? forra.ry : -1;
+      const tx = bx - ax, ty = by - ay, tl = Math.hypot(tx, ty) || 1;
+      let rx = ty / tl, ry = -tx / tl;
+      const fx = forra ? forra.rx : 0, fy = forra ? forra.ry : -1;
+      if (rx * fx + ry * fy < 0) { rx = -rx; ry = -ry; }
       fotspar(mx, my, rx, ry, true);
       fotspar(mx, my, rx, ry, false);
       if (!landBank.spela({ styrka: 1, tonhojd: 0.05 })) { knaster(); knaster(); }
