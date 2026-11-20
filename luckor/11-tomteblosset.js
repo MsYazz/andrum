@@ -147,7 +147,23 @@ void main() {
   vec3 c = mix(vec3(0.03, 0.035, 0.06), vec3(0.008, 0.01, 0.02), uv.y);
   float mark = 0.22 + 0.015 * sin(p.x * 5.0 + 1.0) + 0.01 * sin(p.x * 13.0);
   if (p.y < mark) c = vec3(0.07, 0.08, 0.11) * (0.85 + 0.2 * fbm(p * vec2(8.0, 30.0)));
-  // Ett avlägset, varmt fönster
+  // En liten stuga långt bort. Fasaden är faluröd med lodräta bräder och vita knutar,
+  // och taket har snö. I mörkret syns den nästan inte, men blossets sken lyser upp den
+  // ytterst svagt. Stugan är långt borta, så skenet faller jämnt och svagt över den.
+  float m0 = 0.22 + 0.015 * sin(2.0) + 0.01 * sin(2.6);
+  float sx = abs(p.x - 0.2);
+  float vagg = step(mark, p.y) * step(p.y, m0 + 0.13) * step(sx, 0.075);
+  float tak = step(m0 + 0.13, p.y) * step(p.y, m0 + 0.13 + 0.065 * (1.0 - sx / 0.092)) * step(sx, 0.092);
+  float stugLjus = exp(-dot(p - u_punkt, p - u_punkt) * 1.2) * 0.09 * u_glod;
+  if (vagg > 0.0) {
+    float fog = smoothstep(0.1, 0.0, abs(fract(p.x * 150.0) - 0.5) - 0.38);
+    vec3 farg = vec3(0.45, 0.12, 0.09) * (1.0 - 0.45 * fog) * (0.9 + 0.2 * hash(vec2(floor(p.x * 150.0), 3.0)));
+    farg = mix(farg, vec3(0.75, 0.74, 0.7), step(0.068, sx));
+    c = vec3(0.018, 0.016, 0.022) + farg * stugLjus;
+  }
+  if (tak > 0.0) c = vec3(0.04, 0.045, 0.06) + vec3(0.7, 0.75, 0.85) * stugLjus * 0.8;
+
+  // Stugans varma fönster
   vec2 fo = (p - vec2(0.2, mark + 0.08)) / vec2(0.018, 0.022);
   if (max(abs(fo.x), abs(fo.y)) < 1.0) c = vec3(0.5, 0.3, 0.12) * (abs(fo.x) < 0.08 || abs(fo.y) < 0.08 ? 0.4 : 1.0);
   c += vec3(0.4, 0.22, 0.08) * exp(-dot(p - vec2(0.2, mark + 0.08), p - vec2(0.2, mark + 0.08)) * 300.0) * 0.15;
@@ -256,6 +272,8 @@ export default {
     const H = () => duk.clientHeight / duk.clientWidth;
     const LANGD = 0.46;
     const BRINNTID = 35;                    // sekunder från toppen till handtaget
+    // Fingret håller längst ner på handtaget, en bra bit från där glöden slocknar
+    const GREPP = 0.012;                    // från handtagets ände till fingret
     const grepp = { x: 0.58, y: H() * 0.3 }; // där handen håller
     const mal = { ...grepp };
     let vinkel = 1.78;                       // blosset lutar lite åt vänster
@@ -270,7 +288,7 @@ export default {
     let forraPunkt = null;
     const stavEnd = () => {
       const ux = Math.cos(vinkel), uy = Math.sin(vinkel);
-      const Bx = grepp.x - ux * 0.04, By = grepp.y - uy * 0.04;
+      const Bx = grepp.x - ux * GREPP, By = grepp.y - uy * GREPP;
       return { Bx, By, Tx: Bx + ux * LANGD, Ty: By + uy * LANGD, ux, uy };
     };
     const NYTT_V = 0.32;
@@ -302,7 +320,7 @@ export default {
         if (nytt && nytt.synlig > 0.5 && narStav(wx, wy, nyttLage(nytt.synlig)) < 0.07) {
           const N = nyttLage(nytt.synlig);
           vinkel = NYTT_V;
-          grepp.x = N.Bx + Math.cos(NYTT_V) * 0.04; grepp.y = N.By + Math.sin(NYTT_V) * 0.04;
+          grepp.x = N.Bx + Math.cos(NYTT_V) * GREPP; grepp.y = N.By + Math.sin(NYTT_V) * GREPP;
           nytt = null;
           brand = 1; tand = 0; tander = 0.0001; tandSpelat = false;
           forraPunkt = null;
