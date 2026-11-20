@@ -277,7 +277,7 @@ export default {
         greppPos[1] = vila[k3 + 1] + mjukGrans(wy - vila[k3 + 1], wy > vila[k3 + 1] ? RUM_UPP * 0.9 : RUM_NER * 0.9);
       },
       upp: () => { grepp = -1; },
-    });
+    }, { ett: true });
 
     // ---------- Ljud ----------
     const l = rumsLjud(1.2, 1.6);

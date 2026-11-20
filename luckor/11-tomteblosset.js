@@ -313,7 +313,7 @@ export default {
         const [wx, wy] = tillVarld(x, y);
         mal.x = wx; mal.y = wy;
       },
-    });
+    }, { ett: true });
 
     // ---------- Ljud ----------
     const l = rumsLjud(1.8, 2);

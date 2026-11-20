@@ -193,12 +193,16 @@ export default {
     // ---------- Fingret ----------
     let fx = 0, fy = 0, fMal = 0, fStyrka = 0, nere = false;
     const flytta = (e) => { fx = e.clientX; fy = e.clientY; };
+    // Bara det första fingret räknas, så att ett andra finger inte får ljuset att hoppa
+    let vem = null;
     duk.addEventListener('pointerdown', (e) => {
+      if (vem !== null) return;
+      vem = e.pointerId;
       nere = true; fMal = 1; flytta(e);
       try { duk.setPointerCapture(e.pointerId); } catch {}
     });
-    duk.addEventListener('pointermove', (e) => { if (nere) flytta(e); });
-    const slapp = () => { nere = false; fMal = 0; };
+    duk.addEventListener('pointermove', (e) => { if (nere && e.pointerId === vem) flytta(e); });
+    const slapp = (e) => { if (e.pointerId !== vem) return; vem = null; nere = false; fMal = 0; };
     duk.addEventListener('pointerup', slapp);
     duk.addEventListener('pointercancel', slapp);
 

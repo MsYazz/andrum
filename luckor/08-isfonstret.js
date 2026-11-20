@@ -218,7 +218,7 @@ export default {
         finger.x = nx; finger.y = ny;
       },
       upp: () => { finger.nere = false; },
-    });
+    }, { ett: true });
 
     function smalt(dt) {
       if (!finger.nere) return 0;

@@ -116,7 +116,7 @@ export default {
         finger.x = nx; finger.y = 1 - y / duk.clientHeight;
       },
       upp: () => { finger.nere = false; },
-    });
+    }, { ett: true });
     const slutaLuta = lyssnaLutning((beta, gamma) => { lutning = Math.max(-1, Math.min(1, gamma / 35)); });
 
     // ---------- Ljud ----------

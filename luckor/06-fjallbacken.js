@@ -315,7 +315,7 @@ export default {
       ner: (x, y) => { [finger.x, finger.y] = tillRut(x, y); finger.nere = true; },
       drag: (x, y) => { [finger.x, finger.y] = tillRut(x, y); },
       upp: () => { finger.nere = false; },
-    });
+    }, { ett: true });
 
     // ---------- Ritslinga ----------
     const fysik = fastaSteg(1 / 60, 4);

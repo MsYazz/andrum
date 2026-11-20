@@ -147,7 +147,7 @@ export default {
         forra = null;
         if (tryck) samlar = 1;
       },
-    });
+    }, { ett: true });
 
     // ---------- Ritslinga ----------
     const data = new Float32Array(N * 4);

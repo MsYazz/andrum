@@ -182,16 +182,18 @@ export default {
     }
 
     // ---------- Fingret ----------
-    let forra = null;
+    // Varje finger minns sin egen förra plats, så att två fingrar kan röra om var för sig
+    const forra = new Map();
     let roFart = 0;
     fingrar(duk, {
-      ner: (x, y) => { forra = { x, y, t: performance.now(), rort: false }; },
-      drag: (x, y) => {
-        if (!forra) return;
+      ner: (x, y, id) => { forra.set(id, { x, y, t: performance.now(), rort: false }); },
+      drag: (x, y, id) => {
+        const f = forra.get(id);
+        if (!f) return;
         const nu = performance.now();
-        const dx = x - forra.x, dy = y - forra.y;
-        const dt = Math.max(8, nu - forra.t) / 1000;
-        if (Math.hypot(dx, dy) > 4) forra.rort = true;
+        const dx = x - f.x, dy = y - f.y;
+        const dt = Math.max(8, nu - f.t) / 1000;
+        if (Math.hypot(dx, dy) > 4) f.rort = true;
         // Rör om: strömmen följer fingret
         const gx = (x / duk.clientWidth) * W, gy = (y / duk.clientHeight) * H;
         const fx = (dx / duk.clientWidth) * W / dt, fy = (dy / duk.clientHeight) * H / dt;
@@ -202,11 +204,12 @@ export default {
           vv[yy * W + xx] += (fy - vv[yy * W + xx]) * w;
         }
         roFart = Math.min(1, roFart + Math.hypot(dx, dy) * 0.01);
-        forra = { x, y, t: nu, rort: forra.rort };
+        forra.set(id, { x, y, t: nu, rort: f.rort });
       },
-      upp: (x, y) => {
-        if (forra && !forra.rort) { droppe(x / duk.clientWidth, y / duk.clientHeight); plopp(); }
-        forra = null;
+      upp: (x, y, id) => {
+        const f = forra.get(id);
+        if (f && !f.rort) { droppe(x / duk.clientWidth, y / duk.clientHeight); plopp(); }
+        forra.delete(id);
       },
     });
 

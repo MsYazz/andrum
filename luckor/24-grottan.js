@@ -380,7 +380,7 @@ export default {
           bubbla(ctx, ut, slump(500, 800), 0.05);
         }
       },
-    });
+    }, { ett: true });
 
     // ---------- Ritslinga ----------
     const dRing = new Float32Array(RINGAR * 4);

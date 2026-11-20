@@ -164,12 +164,16 @@ export default {
       finger.y = (duk.clientHeight - e.clientY) / s;
     };
     let nere = false;
+    // Bara det första fingret räknas, så att ett andra finger inte får ljuset att hoppa
+    let vem = null;
     duk.addEventListener('pointerdown', (e) => {
+      if (vem !== null) return;
+      vem = e.pointerId;
       nere = true; finger.mal = 1; flytta(e);
       try { duk.setPointerCapture(e.pointerId); } catch {}
     });
-    duk.addEventListener('pointermove', (e) => { if (nere) flytta(e); });
-    const slapp = () => { nere = false; finger.mal = 0; };
+    duk.addEventListener('pointermove', (e) => { if (nere && e.pointerId === vem) flytta(e); });
+    const slapp = (e) => { if (e.pointerId !== vem) return; vem = null; nere = false; finger.mal = 0; };
     duk.addEventListener('pointerup', slapp);
     duk.addEventListener('pointercancel', slapp);
 

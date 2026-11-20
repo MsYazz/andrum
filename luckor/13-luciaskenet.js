@@ -155,7 +155,7 @@ export default {
         [finger.x, finger.y] = varld(x, y);
       },
       upp: () => { finger.nere = false; },
-    });
+    }, { ett: true });
 
     // Stelnade droppar längs ljuset, och en som ibland rinner
     const droppar = Array.from({ length: DROPPAR }, (_, i) => ({

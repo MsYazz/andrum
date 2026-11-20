@@ -154,7 +154,7 @@ export default {
         forra = { x: gx, y: gy, t: nu, dx, dy, langd: forra.langd + d };
       },
       upp: () => { forra = null; },
-    });
+    }, { ett: true });
 
     // ---------- Nytt ark ----------
     let nyttArk = 0;

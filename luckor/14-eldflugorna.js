@@ -103,7 +103,7 @@ export default {
         finger.x = nx; finger.y = ny;
       },
       upp: () => { finger.nere = false; },
-    });
+    }, { ett: true });
 
     // ---------- Ljud ----------
     const l = rumsLjud(1.2, 1.6);

@@ -247,7 +247,7 @@ export default {
           }
         });
       },
-    });
+    }, { ett: true });
 
     // ---------- Ritslinga ----------
     const fasta = fastaSteg(1 / 120, 8);

@@ -254,7 +254,7 @@ export default {
           if (!knappBank.spela({ styrka: 1, tonhojd: 0.06 })) { small(); knaster(1.2); }
         }
       },
-    });
+    }, { ett: true });
 
     // ---------- Ritslinga ----------
     const data = new Float32Array(GNISTOR * 4);

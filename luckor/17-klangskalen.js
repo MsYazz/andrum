@@ -177,7 +177,7 @@ export default {
           }
         }
       },
-    });
+    }, { ett: true });
 
     // ---------- Ritslinga ----------
     const stoppa = slinga((tid, dt) => {

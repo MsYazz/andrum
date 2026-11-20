@@ -390,7 +390,7 @@ export default {
         if (pinne.lage === 'rista') ristaTill();
       },
       upp: () => { pinne.nere = false; pinne.lage = 'ingen'; forra = null; },
-    });
+    }, { ett: true });
 
     const tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);

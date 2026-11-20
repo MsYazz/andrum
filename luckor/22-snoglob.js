@@ -476,7 +476,7 @@ export default {
         if (ky < -0.92 && ky > -1.45 && Math.abs(kx) < 1.25) dra();
         else if (Math.hypot(kx, ky) < 1) skaka(0.5);
       },
-    });
+    }, { ett: true });
 
     // ---------- Ritslinga ----------
     const stoppa = slinga((tid, dt) => {
