@@ -303,7 +303,7 @@ export default {
     // Kvistens lutning räknas från lodrätt, från bakänden mot spetsen, med spetsen åt höger
     // som plus. I vila lutar den lite åt vänster, och vid kanterna vrider den sig högst
     // MAX_LUTNING åt vardera hållet.
-    const VILO_LUTNING = -20 * Math.PI / 180;
+    const VILO_LUTNING = -5 * Math.PI / 180;
     const MAX_LUTNING = 25 * Math.PI / 180;
     const BAS_VINKEL = (() => {
       const v0 = Math.atan2(-0.89, 0.45);
