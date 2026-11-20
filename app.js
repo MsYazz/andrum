@@ -282,7 +282,10 @@ async function kliverIn(dorr) {
   // var nedrullad, med ett tomrum längst ner och tillbakapilen utanför skärmen.
   setTimeout(() => { if (oppenDorr === dorr && !scen.hidden) rullaTill(0); }, lugn ? 0 : 900);
 
-  const mod = await laddning;
+  // Går rummet inte att ladda eller starta blir det ett tomt rum i rummets färg, som
+  // det ändå går att backa ut ur. Annars skulle hela kalendern fastna i svart.
+  let mod = null;
+  try { mod = await laddning; } catch (fel) { console.error(fel); }
   await vanta(450);
   scen.classList.add('synlig');
   try {

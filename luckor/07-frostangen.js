@@ -211,15 +211,15 @@ export default {
       return [rx, ry];
     }
     // Stegtakten: ett mjukt medel av tiden mellan de senaste stegen
-    let sistaSteg = 0, takt = 0, springer = false;
+    let sistaSteg = 0, stegTakt = 0, springer = false;
     function ettSteg(wx, wy) {
       const [rx, ry] = riktning(wx, wy);
       hoger = !hoger;
       fotspar(wx, wy, rx, ry, hoger);
       const nu = performance.now() / 1000, mellan = nu - sistaSteg;
       sistaSteg = nu;
-      takt = mellan > 1.5 ? 0 : takt ? takt * 0.5 + mellan * 0.5 : mellan;
-      springer = takt > 0 && takt < (springer ? SPRING_UT : SPRING_IN);
+      stegTakt = mellan > 1.5 ? 0 : stegTakt ? stegTakt * 0.5 + mellan * 0.5 : mellan;
+      springer = stegTakt > 0 && stegTakt < (springer ? SPRING_UT : SPRING_IN);
       const bank = springer ? springBank : gangBank;
       if (!bank.spela({ styrka: slump(0.7, 1), tonhojd: 0.07 })) knaster();
       forra = { x: wx, y: wy, rx, ry };
