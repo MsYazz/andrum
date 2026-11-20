@@ -13,7 +13,11 @@ import { mjuk, slump, rumsLjud, slinga, fingrar, stangning, brusstot } from '../
 import { skapaMatta, skapaLjudbank } from '../lib/inspelning.js';
 
 // Stegen i inspelningen av frusen gräs: fem gångsteg och fem löpsteg, [start, längd]
-const STEG = [[0.0, 0.55], [1.07, 0.55], [2.16, 0.5], [3.13, 0.5], [4.11, 0.55], [5.70, 0.42], [6.60, 0.36], [7.43, 0.4], [8.32, 0.4], [9.18, 0.42]];
+const GANG = [[0.0, 0.55], [1.07, 0.55], [2.16, 0.5], [3.13, 0.5], [4.11, 0.55]];
+const SPRING = [[5.70, 0.42], [6.60, 0.36], [7.43, 0.4], [8.32, 0.4], [9.18, 0.42]];
+// Sekunder mellan stegen. Går det fortare än SPRING_IN springer hon, och hon går igen
+// först när det blir långsammare än SPRING_UT, så att ljudet inte fladdrar mellan dem.
+const SPRING_IN = 0.34, SPRING_UT = 0.42;
 
 const FW = 128, FH = 256;     // frostens rutnät
 const ATERFROST = 55;         // sekunder tills ett spår har frostat igen
@@ -155,10 +159,11 @@ export default {
       vindLfo.start();
       l.kallor.push(vind, vindLfo);
     });
-    // Stegen i frosten och landningen efter ett hopp
-    const stegBank = skapaLjudbank(ctx, ut, 'ljud/frost-steg.mp3', STEG, { maxTopp: 0.12, hp: 80 });
+    // Stegen i frosten, gående och springande, och landningen efter ett hopp
+    const gangBank = skapaLjudbank(ctx, ut, 'ljud/frost-steg.mp3', GANG, { maxTopp: 0.12, hp: 80 });
+    const springBank = skapaLjudbank(ctx, ut, 'ljud/frost-steg.mp3', SPRING, { maxTopp: 0.12, hp: 80 });
     const landBank = skapaLjudbank(ctx, ut, 'ljud/frost-landning.mp3', [[0.12, 0.85]], { maxTopp: 0.14, hp: 50 });
-    l.kallor.push(stegBank, landBank);
+    l.kallor.push(gangBank, springBank, landBank);
 
     // Det framräknade knastret används bara om inspelningarna inte går att ladda.
     // Knastret i frosten: en mängd små klick på bråkdelen av en sekund, och en mjuk dov ton
@@ -205,11 +210,18 @@ export default {
       }
       return [rx, ry];
     }
+    // Stegtakten: ett mjukt medel av tiden mellan de senaste stegen
+    let sistaSteg = 0, takt = 0, springer = false;
     function ettSteg(wx, wy) {
       const [rx, ry] = riktning(wx, wy);
       hoger = !hoger;
       fotspar(wx, wy, rx, ry, hoger);
-      if (!stegBank.spela({ styrka: slump(0.7, 1), tonhojd: 0.07 })) knaster();
+      const nu = performance.now() / 1000, mellan = nu - sistaSteg;
+      sistaSteg = nu;
+      takt = mellan > 1.5 ? 0 : takt ? takt * 0.5 + mellan * 0.5 : mellan;
+      springer = takt > 0 && takt < (springer ? SPRING_UT : SPRING_IN);
+      const bank = springer ? springBank : gangBank;
+      if (!bank.spela({ styrka: slump(0.7, 1), tonhojd: 0.07 })) knaster();
       forra = { x: wx, y: wy, rx, ry };
     }
     function hopp(ax, ay, bx, by) {
