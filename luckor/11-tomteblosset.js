@@ -101,6 +101,7 @@ uniform float u_nyttA;    // hur synligt det nya blosset är
 uniform vec2 u_punkt;     // var glöden sitter
 uniform float u_glod;
 uniform float u_synlig;
+uniform float u_stuga;    // ljuset i stugan: 0 när de sover, 1 när de har vaknat
 ${BRUS}
 
 float segment(vec2 p, vec2 a, vec2 b, out float h) {
@@ -197,11 +198,18 @@ void main() {
     if (tak || takkant) c = vec3(0.04, 0.045, 0.06) + vec3(0.7, 0.75, 0.85) * stugLjus * 0.8;
   }
 
-  // Stugans varma fönster, mitt på gaveln
+  // Stugans fönster, mitt på gaveln. De som bor där sover och fönstret är mörkt, tills
+  // hon rör vid stugan. Då tänds en lampa därinne, och ljuset faller ut på snön.
   vec2 fc = vec2((x0 + x1) * 0.5, m0 + 0.045);
   vec2 fo = (p - fc) / vec2(0.016, 0.02);
-  if (max(abs(fo.x), abs(fo.y)) < 1.0) c = vec3(0.5, 0.3, 0.12) * (abs(fo.x) < 0.08 || abs(fo.y) < 0.08 ? 0.4 : 1.0);
-  c += vec3(0.4, 0.22, 0.08) * exp(-dot(p - fc, p - fc) * 300.0) * 0.15;
+  if (max(abs(fo.x), abs(fo.y)) < 1.0) {
+    float sprojs = (abs(fo.x) < 0.08 || abs(fo.y) < 0.08) ? 0.4 : 1.0;
+    vec3 morkt = vec3(0.012, 0.014, 0.022) + vec3(0.25, 0.2, 0.15) * stugLjus * 0.3;
+    c = mix(morkt * (sprojs < 1.0 ? 1.6 : 1.0), vec3(0.5, 0.3, 0.12) * sprojs, u_stuga);
+  }
+  c += vec3(0.4, 0.22, 0.08) * exp(-dot(p - fc, p - fc) * 300.0) * 0.15 * u_stuga;
+  // Ljuset från fönstret på snön framför stugan
+  if (p.y < mark) c += vec3(0.5, 0.3, 0.12) * exp(-pow((p.x - fc.x) / 0.03, 2.0) - pow((mark - p.y) / 0.012, 2.0)) * 0.12 * u_stuga;
 
   // Blossets sken lyser upp omgivningen
   vec2 tp = u_punkt;
@@ -260,7 +268,7 @@ export default {
     const gnistProg = program(gl, GNISTA_VS, GNISTA_FS);
     const gu = platser(gl, gnistProg, ['u_H']);
     const visaProg = program(gl, HELSKARM, VISA_FS);
-    const vu = platser(gl, visaProg, ['u_spar', 'u_res', 'u_tid', 'u_bloss', 'u_brand', 'u_nytt', 'u_nyttA', 'u_punkt', 'u_glod', 'u_synlig']);
+    const vu = platser(gl, visaProg, ['u_spar', 'u_res', 'u_tid', 'u_bloss', 'u_brand', 'u_nytt', 'u_nyttA', 'u_punkt', 'u_glod', 'u_synlig', 'u_stuga']);
 
     // ---------- Spårbilderna, två som turas om ----------
     let bredd = 0, hojd = 0;
@@ -348,6 +356,10 @@ export default {
     }
 
     const tillVarld = (x, y) => [x / duk.clientWidth, (duk.clientHeight - y) / duk.clientWidth];
+    // Stugan i bakgrunden, i samma mått som i shadern
+    const STUG_MARK = 0.22 + 0.015 * Math.sin(2.0) + 0.01 * Math.sin(2.6);
+    const paStugan = (x, y) => x > 0.12 && x < 0.32 && y > STUG_MARK - 0.02 && y < STUG_MARK + 0.155;
+    const stuga = { ljus: 0, mal: 0, vantar: null };
     fingrar(duk, {
       ner: (x, y) => {
         const [wx, wy] = tillVarld(x, y);
@@ -365,6 +377,13 @@ export default {
       drag: (x, y) => {
         const [wx, wy] = tillVarld(x, y);
         mal.x = wx; mal.y = wy;
+      },
+      upp: (x, y, id, { tryck }) => {
+        // Ett tryck på stugan väcker dem som bor där. Efter ett litet tag tänds lampan,
+        // och ett nytt tryck en stund senare får dem att somna om.
+        const [wx, wy] = tillVarld(x, y);
+        if (!tryck || stuga.vantar || !paStugan(wx, wy)) return;
+        stuga.vantar = setTimeout(() => { stuga.mal = stuga.mal ? 0 : 1; stuga.vantar = null; }, slump(900, 1600));
       },
     }, { ett: true });
 
@@ -548,6 +567,9 @@ export default {
       gl.uniform1f(vu.u_nyttA, nytt ? mjuk(0, 0.4, nytt.synlig) : 0);
       gl.uniform1f(vu.u_glod, glod * (0.92 + 0.08 * Math.sin(tid * 23) * Math.sin(tid * 7)));
       gl.uniform1f(vu.u_synlig, mjuk(0, 2.5, tid));
+      // Lampan tänds och släcks mjukt, som en glödlampa bakom en gardin
+      stuga.ljus += (stuga.mal - stuga.ljus) * Math.min(1, dt * 1.2);
+      gl.uniform1f(vu.u_stuga, stuga.ljus);
       ritaHelskarm(gl);
 
       // ---------- Ljud ----------
@@ -561,6 +583,6 @@ export default {
       suF.frequency.setTargetAtTime(400 + 600 * sving, t, 0.1);
     });
 
-    return stangning({ ljud: l, stoppa, gl });
+    return stangning({ ljud: l, stoppa, gl, extra: [() => clearTimeout(stuga.vantar)] });
   },
 };
