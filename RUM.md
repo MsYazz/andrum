@@ -42,6 +42,23 @@ Varje dörr i Andrum leder till ett rum: ett lugnt ljud- och bildlandskap som sv
 | 23 | **Ljusstöpningen** | Köket kvällen före julafton. Hon tar tag i pinnen och doppar veken i varmt stearin, även i sidled. Varje lager rinner nedåt och stelnar, så ljuset blir ojämnt, avsmalnande och får en droppspets. Efter minst åtta dopp kan hon klippa loss det med den gamla stålsaxen bredvid kastrullen, som flyger upp och klipper veken strax ovanför stearinet. Färdiga ljus tänds och står i fönstret med samma form som de fick | Radieprofil längs ljuset, värme per lager, droppar och ringar, sparade former | Klar |
 | 24 | **Grottan** | Julafton. Första gången hänger ett julkort framför grottan, om länken har en mottagare. Ett varmt grottrum med en eld, en porlande bäck och eldflugor, och en vinternatt med en klar stjärna utanför. Ett stilla finger samlar eldflugorna, ett tryck i elden ger gnistor och i bäcken ringar. En plats att vila på utan dåligt samvete | Allt tillsammans, inspelad lägereld och bäck | Klar |
 
+## Påskägg
+
+Små saker att upptäcka. De är tysta och mjuka, ger ingen poäng och behövs aldrig. Man hittar dem genom nyfikenhet, tålamod eller skicklighet. Kortet vid första luckan uppmanar till att utforska.
+
+| # | Rum | Påskägg | Hittas genom |
+|---|---|---|---|
+| 6 | Fjällbäcken | En öring ställer sig i lä bakom fingerstenen, med huvudet mot strömmen, och pilar iväg när fingret rör sig | Hålla fingret stilla några sekunder |
+| 7 | Frostängen | En skogshare skuttar över ängen, sätter sig en stund och lämnar harspår i frosten | Stå still en halv minut |
+| 8 | Isfönstret | En älgko går långsamt förbi framför stugan, lämnar spår i snön och stannar två tredjedelar in. Hon kommer först när rutan har frostat igen | Smälta ett titthål |
+| 9 | Tjärnen | En fladdermus kommer ner och dricker i flykten ur månens spegelbild | Trycka på månen |
+| 11 | Tomteblosset | De som bor i stugan vaknar och tänder en lampa, och somnar om vid nästa tryck | Trycka på stugan |
+| 13 | Luciaskenet | En rökring stiger ur rökslingan | Kväva lågan nästan helt och släppa |
+| 17 | Klangskålen | Vattnet börjar dansa vid kanten och små droppar hoppar upp | Låta skålen sjunga starkt en stund |
+| 19 | Vindspelet | En talgoxe sätter sig på skivan och flyger när man rör skärmen eller telefonen | Låta allt vara stilla länge |
+| 20 | Strandkanten | Vågen lämnar ibland ett musselskal eller en liten sjöstjärna vid sin högsta linje | Vänta på vågorna |
+| 22 | Snögloben | Ljusen i granen tindrar i en våg uppåt och stjärnan lyser upp | Trycka på granen |
+
 ## Reserver
 
 - **Regnet på rutan:** droppar som rinner, går ihop och lämnar spår på ett fönster.
