@@ -30,6 +30,7 @@ uniform vec4 u_kvist;       // en liten avbruten sidokvist: från, till
 uniform float u_pa;         // hur synlig pinnen är
 uniform float u_lyft;       // 1 när kvisten svävar över sanden, 0 när spetsen ristar
 uniform vec4 u_avtryck;     // fingeravtrycket där man håller: x, y, riktning, synlighet
+uniform vec4 u_fynd[4];     // sådant vågen lämnat: x, y (som sanden, y nedåt), sort + vinkel, synlighet
 ${BRUS}
 
 // Avstånd till en sträcka, och var längs sträckan närmaste punkten ligger
@@ -48,6 +49,49 @@ float pinnRadie(float s) {
 
 float framkant(float x, float vag, float fro) {
   return vag + 0.018 * sin(x * 7.0 + fro) + 0.012 * sin(x * 15.0 + fro * 1.7) + 0.007 * sin(x * 31.0 + fro * 2.3);
+}
+
+// Sådant som vågen lämnar kvar, sett uppifrån. q är i skärmbredder, vriden.
+// Ett hjärtmusselskal: rundat med strålande ribbor och tillväxtringar
+vec4 hjartmussla(vec2 q) {
+  vec2 r = q / 0.017;
+  r.y += 0.25 * r.x * r.x;
+  float d = length(r * vec2(1.0, 1.08));
+  float a = smoothstep(1.0, 0.85, d);
+  if (a <= 0.0) return vec4(0.0);
+  float v = atan(r.x, -(r.y - 0.9));
+  float ribba = 0.5 + 0.5 * cos(v * 22.0);
+  vec3 col = mix(vec3(0.86, 0.8, 0.7), vec3(0.95, 0.91, 0.84), ribba);
+  col *= 0.94 + 0.06 * sin(length(r - vec2(0.0, 0.9)) * 22.0);
+  col = mix(col, vec3(0.62, 0.5, 0.4), smoothstep(0.35, 0.0, length(r - vec2(0.0, 0.85))) * 0.6);
+  return vec4(col * (0.8 + 0.25 * (1.0 - d)), a);
+}
+// Ett blåmusselskal: avlångt, blåsvart och blankt, med en brun kant
+vec4 blamussla(vec2 q) {
+  vec2 r = q / vec2(0.012, 0.024);
+  float w = 1.0 - 0.35 * smoothstep(-1.0, 1.0, r.y);
+  float d = length(vec2(r.x / w, r.y));
+  float a = smoothstep(1.0, 0.85, d);
+  if (a <= 0.0) return vec4(0.0);
+  vec3 col = mix(vec3(0.06, 0.07, 0.12), vec3(0.18, 0.2, 0.3), smoothstep(0.8, 0.2, abs(r.x / w - 0.25)));
+  col = mix(col, vec3(0.35, 0.25, 0.15), smoothstep(0.75, 0.98, d));
+  col += vec3(0.5, 0.55, 0.65) * smoothstep(0.25, 0.0, abs(r.x / w + 0.3)) * smoothstep(0.9, 0.0, abs(r.y)) * 0.35;
+  return vec4(col, a);
+}
+// En liten vanlig sjöstjärna: fem lätt böjda armar, orange med ljusa knottror
+vec4 sjostjarna(vec2 q) {
+  float R = 0.026;
+  float v = atan(q.y, q.x);
+  float r = length(q) / R;
+  float arm = pow(0.5 + 0.5 * cos(5.0 * v + 0.35 * sin(r * 3.0)), 1.5);
+  float gr = 0.34 + 0.66 * arm;
+  float a = smoothstep(gr, gr - 0.08, r);
+  if (a <= 0.0) return vec4(0.0);
+  vec3 col = mix(vec3(0.72, 0.28, 0.12), vec3(0.88, 0.48, 0.22), arm * (1.0 - r));
+  vec2 kc = floor(q * 600.0);
+  col = mix(col, vec3(0.95, 0.8, 0.6), step(0.82, hash(kc)) * 0.6);
+  col *= 0.75 + 0.35 * smoothstep(gr, 0.0, r);
+  return vec4(col, a);
 }
 
 void main() {
@@ -93,6 +137,23 @@ void main() {
     sand = mix(sand, snacka * (0.6 + 0.5 * dot(normalize(vec3(-so, 0.06)), L)), sk);
   }
   vec3 c = sand;
+
+  // Snäckor och sjöstjärnor som vågen lämnat, med en liten skugga och lite blänk av väta
+  for (int i = 0; i < 4; i++) {
+    vec4 f = u_fynd[i];
+    if (f.w <= 0.0) continue;
+    vec2 d = (tc - f.xy) * vec2(1.0, asp);
+    d.y = -d.y;
+    float sort = floor(f.z);
+    float v = fract(f.z) * 6.2832;
+    float cv = cos(v), sv = sin(v);
+    vec2 q = vec2(cv * d.x + sv * d.y, -sv * d.x + cv * d.y);
+    vec2 qs = q - vec2(cv * 0.003 + sv * 0.003, -sv * 0.003 + cv * 0.003);
+    vec4 fy = sort < 0.5 ? hjartmussla(q) : sort < 1.5 ? blamussla(q) : sjostjarna(q);
+    vec4 sk = sort < 0.5 ? hjartmussla(qs) : sort < 1.5 ? blamussla(qs) : sjostjarna(qs);
+    c *= 1.0 - 0.3 * sk.a * f.w;
+    c = mix(c, fy.rgb * (0.95 + 0.1 * vata), fy.a * f.w);
+  }
 
   // Vattnet som sköljer upp, med skum i framkanten
   float y = tc.y;
@@ -204,7 +265,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_sand', 'u_rut', 'u_vag', 'u_tid', 'u_synlig', 'u_pp', 'u_kvist', 'u_pa', 'u_lyft', 'u_avtryck']);
+    const u = platser(gl, prog, ['u_res', 'u_sand', 'u_rut', 'u_vag', 'u_tid', 'u_synlig', 'u_pp', 'u_kvist', 'u_pa', 'u_lyft', 'u_avtryck', 'u_fynd']);
 
     // ---------- Sanden ----------
     const N = SW * SH;
@@ -258,6 +319,35 @@ export default {
       if (t < 0 || t > 1) return { y: 0.1, kvar: 0 };
       const upp = t < 0.4 ? 1 - Math.pow(1 - t / 0.4, 2) : 1 - Math.pow((t - 0.4) / 0.6, 1.4);
       return { y: 0.12 + (vag.nar - 0.12) * upp, kvar: t < 0.9 ? 1 : 1 - (t - 0.9) / 0.1 };
+    }
+
+    // ---------- Fynd ----------
+    // När en våg drar sig tillbaka lämnar den ibland en snäcka eller en liten sjöstjärna
+    // vid sin högsta linje, där sådant hamnar på en riktig strand. En senare våg som når
+    // dit kan skölja bort den igen.
+    const fynd = Array.from({ length: 4 }, () => ({ x: 0, y: 0, z: 0, a: 0, mal: 0 }));
+    const fyndData = new Float32Array(16);
+    let vagVande = false;
+    function lamnaFynd() {
+      if (Math.random() > 0.4) return;
+      const f = fynd.find((q) => q.mal === 0 && q.a < 0.01) ?? fynd[Math.floor(Math.random() * 4)];
+      const r = Math.random();
+      const x = slump(0.12, 0.88);
+      Object.assign(f, {
+        x, y: framkant(x, vag.nar, vag.fro) - slump(0.01, 0.04),
+        z: (r < 0.45 ? 0 : r < 0.8 ? 1 : 2) + Math.random() * 0.999, mal: 1,
+      });
+    }
+    function fyndRor(dt, drar) {
+      // Vågen har nått sin högsta punkt och vänder
+      if (drar && !vagVande && vatten > 0.9) { vagVande = true; lamnaFynd(); }
+      if (!drar) vagVande = false;
+      fynd.forEach((f, i) => {
+        // Sköljer en våg över fyndet följer det ibland med ut
+        if (f.mal > 0 && !drar && vatten > 0.9 && framkant(f.x, vagLage, vag.fro) > f.y + 0.02 && Math.random() < dt * 0.4) f.mal = 0;
+        f.a += (f.mal - f.a) * Math.min(1, dt * (f.mal ? 2 : 0.8));
+        fyndData.set([f.x, f.y, f.z, f.a], i * 4);
+      });
     }
 
     // ---------- Ljud ----------
@@ -470,6 +560,7 @@ export default {
           vata[i] = Math.min(1, vata[i] + dt * 3 * vatten);
         }
       }
+      fyndRor(dt, drar);
       // Sanden torkar sakta
       for (let i = 0; i < N; i++) if (vata[i] > 0) vata[i] = Math.max(0, vata[i] - dt * 0.012);
 
@@ -486,6 +577,7 @@ export default {
       anpassa(gl, duk, 0.75);
       gl.uniform2f(u.u_res, duk.width, duk.height);
       gl.uniform3f(u.u_vag, vagLage, vag.fro, vatten);
+      gl.uniform4fv(u.u_fynd, fyndData);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
       // Kvisten glider snabbt in under fingret och sänks
