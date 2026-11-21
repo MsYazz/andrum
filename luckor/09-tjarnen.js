@@ -26,7 +26,42 @@ uniform vec4 u_blad[${BLAD}];   // x, y (0..1, y nedåt), radie (andel av bredde
 uniform vec2 u_mane;
 uniform float u_tid;
 uniform float u_synlig;
+uniform vec4 u_fl;          // fladdermusen: x, y, riktning, vingslagets fas
+uniform vec2 u_flS;         // fladdermusens skala och synlighet
 ${BRUS}
+
+// En fladdermus sedd uppifrån: liten kropp, huvud med öron, vingar med en framkant
+// som sveper bakåt mot spetsen och en bakkant med bågar mellan fingrarna, och en
+// svansflyghud. Vingarna ser smalast ut i slagets ytterlägen och bredast mitt i slaget.
+// Returnerar täckning för kropp (x) och vingar (y).
+vec2 fladdermus(vec2 p, vec4 f, float skala) {
+  vec2 d = (p - f.xy) / skala;
+  vec2 fw = vec2(cos(f.z), sin(f.z)), sd = vec2(-fw.y, fw.x);
+  float y = dot(d, fw), x = dot(d, sd), ax = abs(x);
+  float kropp = smoothstep(1.0, 0.75, length(vec2(x / 0.0052, (y + 0.002) / 0.012)));
+  kropp = max(kropp, smoothstep(1.0, 0.7, length(vec2(x, y - 0.011) / 0.004)));
+  kropp = max(kropp, smoothstep(1.0, 0.6, length(vec2((ax - 0.002) / 0.0012, (y - 0.0152) / 0.0028))));
+  float span = 0.045 * (0.5 + 0.5 * abs(cos(f.w)));
+  float xv = ax / span;
+  float vinge = 0.0;
+  if (xv < 1.0) {
+    // Framkanten: överarmen och underarmen fram till handleden en tredjedel ut, sedan
+    // fingrarna som sveper bakåt mot spetsen
+    float fram = xv < 0.36 ? 0.004 + 0.008 * sin(xv / 0.36 * 1.5708)
+                           : 0.012 - 0.026 * pow((xv - 0.36) / 0.64, 1.1);
+    // Bakkanten: från foten vid kroppen ut till spetsen, med en båge mellan varje finger
+    float bak = mix(-0.019, -0.014, smoothstep(0.1, 1.0, xv));
+    bak += 0.007 * step(0.15, xv) * step(xv, 0.52) * sin(3.1416 * (xv - 0.15) / 0.37);
+    bak += 0.006 * step(0.52, xv) * step(xv, 0.8) * sin(3.1416 * (xv - 0.52) / 0.28);
+    bak += 0.004 * step(0.8, xv) * sin(3.1416 * (xv - 0.8) / 0.2);
+    float k = 0.0012 / skala;
+    vinge = smoothstep(k, -k * 0.5, max(y - fram, bak - y)) * smoothstep(0.004, 0.012, ax + 0.008);
+  }
+  // Svansflyghuden bakom kroppen
+  float sv = clamp((y + 0.024) / 0.014, 0.0, 1.0);
+  vinge = max(vinge, step(-0.024, y) * step(y, -0.01) * smoothstep(0.011 * sv + 0.001, 0.011 * sv - 0.001, ax));
+  return vec2(kropp, vinge);
+}
 
 // Spegelbilden: kvällshimmel, månen och granarnas siluetter runt stranden
 vec3 spegel(vec2 p, float asp) {
@@ -135,6 +170,13 @@ void main() {
     c = mix(c, blad * 0.75, inne);
   }
 
+  // Fladdermusen som kommer ner och dricker
+  if (u_flS.y > 0.0) {
+    vec2 fl = fladdermus(p, u_fl, u_flS.x);
+    c = mix(c, vec3(0.045, 0.035, 0.035), fl.y * 0.9 * u_flS.y);
+    c = mix(c, vec3(0.025, 0.02, 0.02), fl.x * u_flS.y);
+  }
+
   c *= u_synlig;
   frag = vec4(dither(c, gl_FragCoord.xy, u_tid), 1.0);
 }`;
@@ -144,7 +186,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_yta', 'u_rut', 'u_blad', 'u_mane', 'u_tid', 'u_synlig']);
+    const u = platser(gl, prog, ['u_res', 'u_yta', 'u_rut', 'u_blad', 'u_mane', 'u_tid', 'u_synlig', 'u_fl', 'u_flS']);
 
     // ---------- Vattenytan ----------
     const N = VW * VH;
@@ -185,7 +227,8 @@ export default {
     gl.uniform1i(u.u_yta, 0);
     gl.uniform2f(u.u_rut, VW, VH);
     const A = duk.clientHeight / duk.clientWidth;
-    gl.uniform2f(u.u_mane, slump(0.25, 0.4), A * slump(0.62, 0.75));
+    const mane = { x: slump(0.25, 0.4), y: A * slump(0.62, 0.75) };
+    gl.uniform2f(u.u_mane, mane.x, mane.y);
 
     // Näckrosblad på olika ställen varje gång
     const blad = [];
@@ -273,12 +316,41 @@ export default {
     const forra = new Map();
     let dragFart = 0;
     const tillRut = (x, y) => [x / duk.clientWidth, y / duk.clientHeight];
+    // Ett tryck på månens spegelbild lockar ner en fladdermus som dricker i flykten: den
+    // saktar in över månen, nuddar ytan med en liten ring och flyger vidare. Riktiga
+    // fladdermöss dricker just så, i flykten över stilla vatten.
+    let flyg = null, flygVila = 0;
+    function lockaFladdermus() {
+      const v = slump(0, 6.28), dx = Math.cos(v), dy = Math.sin(v);
+      const sv = v + slump(-0.6, 0.6);
+      const P0 = [mane.x + dx * 1.3, mane.y + dy * 1.3];
+      const P2 = [mane.x - Math.cos(sv) * 1.3, mane.y - Math.sin(sv) * 1.3];
+      // Kontrollpunkten väljs så att kurvan går genom månen mitt i flykten
+      const C = [2 * mane.x - (P0[0] + P2[0]) / 2, 2 * mane.y - (P0[1] + P2[1]) / 2];
+      flyg = { t: 0, P0, C, P2, fas: 0, druckit: false, slump: slump(0, 6.28) };
+    }
+    function flygLage(t) {
+      // Långsammast över månen, där den dricker
+      const s = t - 0.06 * Math.sin(4 * Math.PI * t);
+      const a = (1 - s) * (1 - s), b = 2 * s * (1 - s), c2 = s * s;
+      const x = a * flyg.P0[0] + b * flyg.C[0] + c2 * flyg.P2[0];
+      const y = a * flyg.P0[1] + b * flyg.C[1] + c2 * flyg.P2[1];
+      // Fladdermöss flyger lite ryckigt, med små kast i sidled
+      const vingel = Math.sin(t * 23 + flyg.slump) * 0.008 + Math.sin(t * 9.7) * 0.012;
+      const tx = flyg.P2[0] - flyg.P0[0], ty = flyg.P2[1] - flyg.P0[1], tl = Math.hypot(tx, ty);
+      return [x - (ty / tl) * vingel * Math.sin(Math.PI * t), y + (tx / tl) * vingel * Math.sin(Math.PI * t)];
+    }
     fingrar(duk, {
       ner: (x, y, id) => {
         const [rx, ry] = tillRut(x, y);
         droppe(rx, ry, 1);
         plipp(1);
         forra.set(id, { x: rx, y: ry });
+        const px = x / duk.clientWidth, py = (duk.clientHeight - y) / duk.clientWidth;
+        if (!flyg && flygVila <= 0 && Math.hypot(px - mane.x, py - mane.y) < 0.05) {
+          flygVila = 1.4;
+          setTimeout(lockaFladdermus, slump(1200, 2000));
+        }
       },
       drag: (x, y, id) => {
         const [rx, ry] = tillRut(x, y);
@@ -322,6 +394,27 @@ export default {
         b.v += (h[i + 1] - h[i - 1]) * 0.002;
       }
       blad.forEach((b, i) => bladData.set([b.x, b.y, b.r, b.v], i * 4));
+
+      // Fladdermusen som dricker ur månen
+      flygVila -= dt;
+      if (flyg) {
+        flyg.t += dt / 3.4;
+        flyg.fas += dt * 2 * Math.PI * 8;
+        const t = Math.min(flyg.t, 1);
+        const [fx, fy] = flygLage(t), [nx, ny] = flygLage(Math.min(1, t + 0.01));
+        if (!flyg.druckit && t >= 0.5) {
+          flyg.druckit = true;
+          const v = Math.atan2(ny - fy, nx - fx);
+          droppe(fx + Math.cos(v) * 0.012, 1 - (fy + Math.sin(v) * 0.012) / A, 0.35, 1.5);
+          if (fladderPan.pan) fladderPan.pan.setTargetAtTime((fx - 0.5) * 1.4, ctx.currentTime, 0.1);
+          fladderBank.spela({ styrka: 0.8, tonhojd: 0.05, ansats: 0.2 });
+        }
+        // Lite mindre när den är nere vid ytan, längre från den som tittar
+        const skala = 1 - 0.12 * Math.exp(-Math.pow((t - 0.5) / 0.08, 2));
+        gl.uniform4f(u.u_fl, fx, fy, Math.atan2(ny - fy, nx - fx), flyg.fas);
+        gl.uniform2f(u.u_flS, skala, 1);
+        if (flyg.t >= 1) { flyg = null; flygVila = 6; gl.uniform2f(u.u_flS, 1, 0); }
+      }
 
       dragFart *= Math.exp(-dt * 4);
       drG.gain.setTargetAtTime(0.03 * dragFart, ctx.currentTime, 0.08);
