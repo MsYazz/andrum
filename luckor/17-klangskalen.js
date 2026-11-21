@@ -149,12 +149,26 @@ export default {
       }
       return g;
     });
-    const slagNiva = DELAR.map(() => 0);
     let sang = 0;
     const NIVA = 0.07;
 
-    function sla(styrka) {
-      DELAR.forEach(([, a], i) => { slagNiva[i] = Math.min(1, slagNiva[i] + a * styrka); });
+    // Ett kort pling, som när en nagel nuddar brons: hård ansats och kort klang, där de
+    // ljusa deltonerna hörs mest och dör ut fortast. Själva sången kommer först när hon
+    // gnider, och den tar en stund att sätta i rörelse.
+    const NAGEL = [[0.35, 0.3], [0.5, 0.16], [0.42, 0.09], [0.25, 0.055], [0.12, 0.035]];
+    function nagel(styrka) {
+      const t = ctx.currentTime;
+      DELAR.forEach(([k], i) => {
+        const [a, tau] = NAGEL[i];
+        const o = ctx.createOscillator();
+        o.frequency.value = GRUND * k;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(a * styrka * NIVA * 0.9, t + 0.0015);
+        g.gain.setTargetAtTime(0.0001, t + 0.0015, tau);
+        o.connect(g); g.connect(ut); g.connect(eko);
+        o.start(t); o.stop(t + tau * 8 + 0.05);
+      });
     }
 
     // ---------- Fingret ----------
@@ -171,12 +185,12 @@ export default {
         const d = Math.hypot(x - cx, y - cy);
         gnider = Math.abs(d - Rpx()) < Rpx() * 0.25;
         forraVinkel = Math.atan2(cy - y, x - cx);
-        // Skålen klingar till så fort hon nuddar den, så att det hörs vad det är.
-        // Starkast på kanten, och lite mjukare inne i vattnet.
+        // Skålen plingar till kort så fort hon nuddar den, så att det hörs vad det är.
+        // Tydligast på kanten, och lite mjukare inne i vattnet.
         if (d < Rpx() * 1.25) {
           const s = duk.clientWidth;
-          slag = { x: (x - cx) / s, y: (cy - y) / s, t: 0, s: 1 };
-          sla(d > Rpx() * 0.8 ? 0.9 : 0.6);
+          slag = { x: (x - cx) / s, y: (cy - y) / s, t: 0, s: 0.35 };
+          nagel(d > Rpx() * 0.8 ? 1 : 0.7);
         }
       },
       drag: (x, y, id, e) => {
@@ -240,17 +254,16 @@ export default {
       const fart = gnidFart;
       vinkelFart = 0;
       const lagom = gnider ? mjuk(0.5, 2.5, fart) * (1 - 0.4 * mjuk(8, 14, fart)) : 0;
-      sang += (lagom * 1.0 - sang) * Math.min(1, dt * (lagom > sang ? 0.7 : 0.25));
+      sang += (lagom * 1.0 - sang) * Math.min(1, dt * (lagom > sang ? 0.4 : 0.25));
       slag.t += dt;
 
       const t = ctx.currentTime;
-      DELAR.forEach(([, , avk, gnid], i) => {
-        slagNiva[i] *= Math.exp(-dt / avk);
-        const mal = (slagNiva[i] + sang * gnid) * NIVA;
+      DELAR.forEach(([, , , gnid], i) => {
+        const mal = sang * gnid * NIVA;
         delar[i].gain.setTargetAtTime(mal, t, 0.03);
       });
 
-      const synlig = Math.max(sang, slagNiva[0] * 0.8);
+      const synlig = sang;
       anpassa(gl, duk, 0.75);
       gl.uniform2f(u.u_res, duk.width, duk.height);
       gl.uniform1f(u.u_tid, tid);
