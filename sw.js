@@ -4,7 +4,7 @@ const CACHE = 'andrum-v7';
 const SKAL = [
   './',
   './index.html',
-  './style.css',
+  './style.css?v=2',
   './app.js',
   './manifest.webmanifest',
   './ikoner/ikon-180.png',

@@ -227,6 +227,14 @@ h1 {
 
 .dorr:not(:disabled):active .blad { filter: brightness(1.15); }
 
+#viskning {
+  margin: -12px 0 22px;
+  text-align: center;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: rgba(141, 130, 159, 0.85);
+}
+
 #forhand {
   margin: 34px 0 0;
   text-align: center;
@@ -457,6 +465,15 @@ h1 {
 }
 
 .intro-tips { font-style: italic; font-size: 0.95rem; }
+
+.intro .utforska-text {
+  margin: 0 0 2rem;
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: #ece3d6;
+}
+.utforska-text span { display: block; text-wrap: balance; }
+.utforska-text span + span { margin-top: 0.6rem; }
 
 /* Pakettaggen med rimmet */
 .kort .tagg {
