@@ -152,6 +152,27 @@ void main() {
   lagfarg = mix(lagfarg, vec3(0.35, 0.45, 1.0), bas * 0.7);
   c = mix(c, lagfarg * 1.25, f * (1.0 - bas * 0.5));
   c += vec3(1.0, 0.95, 0.85) * karna * 0.6;
+
+  // Stelnat stearin som står kvar runt lågan, som tunna oregelbundna väggar. De blir
+  // högre ju längre ljuset har brunnit, är högst ute vid kanterna och lägst framtill,
+  // och lågan lyser igenom dem varmt. Framkanten skymmer lågans fot.
+  float vagg = clamp((0.42 - TOPP) * 0.6 + 0.11, 0.11, 0.17);
+  float xr = p.x / (LJ_B * ojamn);
+  if (abs(xr) < 1.0 && p.y > TOPP - 0.006) {
+    float utat = smoothstep(0.2, 0.92, abs(xr));
+    float klumpar = 0.62 + 0.38 * brus(vec2(p.x * 45.0, 3.0)) + 0.12 * sin(p.x * 140.0);
+    float sidan = 0.8 + 0.5 * brus(vec2(sign(p.x) * 3.0 + 1.0, 9.0));
+    float hojd = vagg * (0.15 + 0.85 * utat) * klumpar * sidan;
+    if (p.y < TOPP + hojd) {
+      float genom = exp(-length((p - veke) * vec2(1.0, 0.6)) * 9.0);
+      vec3 vaggF = vec3(0.86, 0.8, 0.7) * (0.3 + 0.45 * L) + vec3(1.0, 0.58, 0.24) * genom * 1.5 * L;
+      vaggF *= 0.85 + 0.25 * brus(vec2(p.x * 90.0, p.y * 28.0));
+      vaggF *= 1.0 - 0.3 * smoothstep(0.8, 1.0, abs(xr));
+      // Kanten överst är tunn och lyser mest
+      vaggF += vec3(1.0, 0.7, 0.35) * smoothstep(0.008, 0.0, TOPP + hojd - p.y) * 0.25 * L;
+      c = mix(c, vaggF, smoothstep(TOPP + hojd, TOPP + hojd - 0.003, p.y));
+    }
+  }
   vec2 hd = (p - veke - vec2(-u_luta * 0.02, 0.05)) * vec2(1.0, 0.7);
   c += vec3(1.0, 0.6, 0.25) * exp(-dot(hd, hd) * 60.0) * 0.18 * L;
   // Veken glöder rött när lågan nästan slocknat
@@ -252,38 +273,48 @@ export default {
     const fF = ctx.createBiquadFilter(); fF.type = 'bandpass'; fF.frequency.value = 280; fF.Q.value = 0.7;
     const fG = ctx.createGain(); fG.gain.value = 0;
     fladder.connect(fF).connect(fG).connect(ut);
-    // Sankta Lucia, svagt och långt bort, som en speldosa i ett annat rum. Den spelar en
-    // gång, och efter en lång stunds tystnad igen.
+    // Sankta Lucia, svagt och långt bort, långsamt och spöklikt som på en musiksåg: en
+    // enda ren ton som glider mellan tonerna och får ett vibrato som växer på långa toner.
+    // Den spelar en gång, och efter en lång stunds tystnad igen.
     const musik = ctx.createGain(); musik.gain.value = 1;
-    const musikF = ctx.createBiquadFilter(); musikF.type = 'lowpass'; musikF.frequency.value = 2400;
-    const musikEko = rum(3.5);
-    const ekoG = ctx.createGain(); ekoG.gain.value = 0.55;
+    const musikF = ctx.createBiquadFilter(); musikF.type = 'lowpass'; musikF.frequency.value = 2200;
+    const musikEko = rum(4);
+    const ekoG = ctx.createGain(); ekoG.gain.value = 0.7;
     musik.connect(musikF).connect(ut);
     musikF.connect(musikEko).connect(ekoG).connect(ut);
-    function ton(f, t, styrka) {
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(styrka, t + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
-      for (const [k, a] of [[1, 1], [2, 0.22], [3, 0.06], [4.2, 0.025]]) {
-        const o = ctx.createOscillator();
-        o.frequency.value = f * k;
-        const og = ctx.createGain(); og.gain.value = a;
-        o.connect(og).connect(g);
-        o.start(t); o.stop(t + 2.3);
-      }
-      g.connect(musik);
-    }
-    const ATTONDEL = 0.3;
+    const sagVag = ctx.createPeriodicWave(new Float32Array([0, 0, 0, 0]), new Float32Array([0, 1, 0.12, 0.035]));
+    const ATTONDEL = 0.5;
+    const NIVA = 0.011;
     let musikTimer = 0;
     function spelaLucia() {
-      let t = ctx.currentTime + 0.3;
-      for (const [halvton, langd] of MELODI) {
-        ton(440 * Math.pow(2, halvton / 12), t, 0.014 * slump(0.85, 1));
-        t += langd * ATTONDEL * slump(0.97, 1.03);
-      }
+      const t0 = ctx.currentTime + 0.4;
+      const o = ctx.createOscillator();
+      o.setPeriodicWave(sagVag);
+      const vib = ctx.createOscillator(); vib.frequency.value = 5.2;
+      const vibDjup = ctx.createGain(); vibDjup.gain.value = 0;
+      vib.connect(vibDjup).connect(o.detune);
+      const g = ctx.createGain(); g.gain.value = 0;
+      o.connect(g).connect(musik);
+      let t = t0;
+      MELODI.forEach(([halvton, langd], i) => {
+        const f = 880 * Math.pow(2, halvton / 12);
+        const len = langd * ATTONDEL * slump(0.97, 1.04);
+        // Tonen glider dit, som när sågen böjs
+        if (i === 0) o.frequency.setValueAtTime(f, t);
+        else o.frequency.setTargetAtTime(f, t, 0.07);
+        // En liten svacka i början av varje ton och sedan en mjuk svällning
+        g.gain.setTargetAtTime(NIVA * 0.55, t, 0.03);
+        g.gain.setTargetAtTime(NIVA * (0.85 + 0.15 * Math.min(1, langd / 4)), t + 0.06, 0.12);
+        // Vibratot växer på långa toner
+        vibDjup.gain.setTargetAtTime(6, t, 0.05);
+        vibDjup.gain.setTargetAtTime(langd >= 3 ? 32 : 16, t + 0.15, len * 0.35);
+        t += len;
+      });
+      g.gain.setTargetAtTime(0, t, 0.5);
+      o.start(t0); vib.start(t0);
+      o.stop(t + 3); vib.stop(t + 3);
       const sek = t - ctx.currentTime;
-      musikTimer = setTimeout(spelaLucia, (sek + slump(40, 70)) * 1000);
+      musikTimer = setTimeout(spelaLucia, (sek + slump(45, 80)) * 1000);
     }
     musikTimer = setTimeout(spelaLucia, slump(4, 8) * 1000);
     l.kallor.push(rumston, fladder, { stop: () => clearTimeout(musikTimer) });
