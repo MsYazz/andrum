@@ -9,6 +9,7 @@ import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } fr
 import { brusKalla, rum } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, klamp, rumsLjud, slinga, fastaSteg, fingrar, stangning, brusstot } from '../lib/scen.js';
+import { mottagare } from '../lib/mottagare.js';
 
 const PW = 180, PH = 390;
 
@@ -20,6 +21,9 @@ uniform sampler2D u_ark;   // r: bläck i fibrerna, g: bläck i vattnet, b: vatt
 uniform vec2 u_rut;
 uniform float u_tid;
 uniform float u_synlig;
+uniform sampler2D u_hanko;  // namnstämpeln: röd med vita inristade tecken
+uniform vec4 u_hankoLage;   // mitt x, y (som arket, y nedåt), storlek (skärmbredder), vinkel
+uniform float u_hankoA;     // hur mycket som syns av stämpeln
 ${BRUS}
 
 void main() {
@@ -50,6 +54,20 @@ void main() {
   // Vått bläck glänser svagt och är lite mörkare
   c *= 1.0 - 0.08 * smoothstep(0.1, 0.6, a.b);
 
+  // Namnstämpeln i hörnet, med ojämnt tryck och papperets fibrer igenom färgen
+  if (u_hankoA > 0.0) {
+    vec2 d = (tc - u_hankoLage.xy) * vec2(1.0, asp);
+    float cv = cos(u_hankoLage.w), sv = sin(u_hankoLage.w);
+    d = vec2(cv * d.x + sv * d.y, -sv * d.x + cv * d.y) / u_hankoLage.z + 0.5;
+    if (d.x > 0.0 && d.x < 1.0 && d.y > 0.0 && d.y < 1.0) {
+      float farg = texture(u_hanko, d).a;
+      float tryck = 0.72 + 0.28 * brus(gl_FragCoord.xy * 0.35) - fiber * 0.25;
+      tryck *= 0.85 + 0.15 * brus(d * 9.0);
+      vec3 cinnober = vec3(0.78, 0.16, 0.1);
+      c = mix(c, c * cinnober * 1.15, clamp(farg * tryck, 0.0, 1.0) * u_hankoA);
+    }
+  }
+
   c *= 1.0 - 0.2 * pow(length(uv - 0.5) * 1.3, 2.5);
   c *= u_synlig;
   frag = vec4(dither(c, gl_FragCoord.xy, u_tid), 1.0);
@@ -60,7 +78,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_ark', 'u_rut', 'u_tid', 'u_synlig']);
+    const u = platser(gl, prog, ['u_hanko', 'u_hankoLage', 'u_hankoA', 'u_res', 'u_ark', 'u_rut', 'u_tid', 'u_synlig']);
 
     // ---------- Papperet ----------
     const N = PW * PH;
@@ -131,6 +149,7 @@ export default {
         const [gx, gy] = tillRut(x, y);
         forra = { x: gx, y: gy, t: performance.now(), dx: 0, dy: 1, langd: 0 };
         stampla(gx, gy, 2.2, 0, 1, 0);
+        drag = [[gx, gy]];
       },
       drag: (x, y) => {
         if (!forra) return;
@@ -152,9 +171,97 @@ export default {
         blackMangd = Math.max(0.15, blackMangd - d * 0.0016);
         svisch = Math.min(1, svisch + fart * 0.2);
         forra = { x: gx, y: gy, t: nu, dx, dy, langd: forra.langd + d };
+        drag.push([gx, gy]);
       },
-      upp: () => { forra = null; },
+      upp: () => {
+        forra = null;
+        if (!hanko.satt && arEnso(drag)) { hanko.satt = true; hanko.vantar = 0.9; }
+        drag = [];
+      },
     }, { ett: true });
+
+    // ---------- Namnstämpeln ----------
+    // Målar hon en sluten cirkel i ett enda drag, en ensō, trycks en röd namnstämpel i
+    // hörnet, som på en riktig tuschmålning. Till Vivan står hennes namn i katakana,
+    // annars Andrum. Tecknen står i två lodräta kolumner som läses från höger.
+    const NAMN = mottagare === 'vivan' ? ['ヴ', 'ィ', 'ヴ', 'ァ', 'ン'] : ['ア', 'ン', 'ド', 'ル', 'ム'];
+    const SMA = new Set(['ィ', 'ァ']);
+    function ritaHanko() {
+      const S = 256;
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = S;
+      const g = cv.getContext('2d');
+      // Ett rött block med lite ojämna kanter, och tecknen inristade så att papperet syns
+      g.fillStyle = '#000';
+      g.beginPath();
+      const n = 40;
+      for (let i = 0; i < n * 4; i++) {
+        const sida = Math.floor(i / n), t = (i % n) / n;
+        const ojamn = (Math.random() - 0.5) * 3;
+        const m = 14, L = S - 2 * m;
+        const pts = [[m + L * t, m + ojamn], [S - m + ojamn, m + L * t], [S - m - L * t, S - m + ojamn], [m + ojamn, S - m - L * t]];
+        const [x, y] = pts[sida];
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.closePath();
+      g.fill();
+      g.globalCompositeOperation = 'destination-out';
+      // En smal inre ram, som på många stämplar
+      g.lineWidth = 5;
+      g.strokeRect(30, 30, S - 60, S - 60);
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      const kolumner = [NAMN.slice(0, 3), NAMN.slice(3)];
+      kolumner.forEach((kol, k) => {
+        const x = k === 0 ? S * 0.665 : S * 0.335;
+        const steg = (S - 84) / 3;
+        const y0 = k === 0 ? 42 + steg / 2 : 42 + steg;
+        kol.forEach((tecken, j) => {
+          const liten = SMA.has(tecken);
+          g.font = `900 ${liten ? 58 : 84}px "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", "Noto Sans CJK JP", serif`;
+          g.fillText(tecken, x + (liten ? 8 : 0), y0 + j * steg - (liten ? 6 : 0));
+          // Lite tjockare streck, som när tecknen är skurna i sten
+          g.lineWidth = liten ? 2 : 3;
+          g.strokeText(tecken, x + (liten ? 8 : 0), y0 + j * steg - (liten ? 6 : 0));
+        });
+      });
+      return cv;
+    }
+    const hankoTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, hankoTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, ritaHanko());
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(u.u_hanko, 1);
+    const hanko = { a: 0, mal: 0, vantar: 0, satt: false };
+    let drag = [];
+    // Är draget en ensō? Ungefär lika långt från mitten hela vägen, nästan ett helt varv,
+    // och slutet nära början
+    function arEnso(pts) {
+      if (pts.length < 20) return false;
+      let cx = 0, cy = 0;
+      for (const [x, y] of pts) { cx += x; cy += y; }
+      cx /= pts.length; cy /= pts.length;
+      const r = pts.map(([x, y]) => Math.hypot(x - cx, y - cy));
+      const R = r.reduce((a, b) => a + b, 0) / r.length;
+      if (R < PW * 0.1) return false;
+      const sd = Math.sqrt(r.reduce((a, b) => a + (b - R) ** 2, 0) / r.length);
+      if (sd / R > 0.2) return false;
+      let varv = 0;
+      for (let i = 1; i < pts.length; i++) {
+        let da = Math.atan2(pts[i][1] - cy, pts[i][0] - cx) - Math.atan2(pts[i - 1][1] - cy, pts[i - 1][0] - cx);
+        if (da > Math.PI) da -= 2 * Math.PI;
+        if (da < -Math.PI) da += 2 * Math.PI;
+        varv += da;
+      }
+      if (Math.abs(varv) < Math.PI * 2 * 0.85) return false;
+      const [x0, y0] = pts[0], [x1, y1] = pts[pts.length - 1];
+      return Math.hypot(x1 - x0, y1 - y0) < R * 0.5;
+    }
 
     // ---------- Nytt ark ----------
     let nyttArk = 0;
@@ -210,6 +317,8 @@ export default {
         for (let i = 0; i < N; i++) { fast[i] *= k; los[i] *= k; vatten[i] *= k; }
         nyttArk -= dt * 0.8;
         if (nyttArk <= 0) { fast.fill(0); los.fill(0); vatten.fill(0); nyttArk = 0; }
+        // Stämpeln följer med det gamla arket
+        hanko.a *= k; hanko.mal = 0; hanko.satt = false; hanko.vantar = 0;
       }
       svisch *= Math.exp(-dt * 5);
       const t = ctx.currentTime;
@@ -223,6 +332,22 @@ export default {
       gl.uniform2f(u.u_res, duk.width, duk.height);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
+      // Stämpeln trycks dit en liten stund efter cirkeln, med ett dovt tock
+      if (hanko.vantar > 0) {
+        hanko.vantar -= dt;
+        if (hanko.vantar <= 0) {
+          hanko.mal = 1;
+          hanko.lage = [slump(0.8, 0.86), slump(0.86, 0.9), 0.13, slump(-0.06, 0.06)];
+          brusstot(ctx, ut, { frekvens: 180, q: 1.2, styrka: 0.12, langd: 0.012, nar: ctx.currentTime });
+        }
+      }
+      hanko.a += (hanko.mal - hanko.a) * Math.min(1, dt * 9);
+      if (hanko.lage) gl.uniform4f(u.u_hankoLage, ...hanko.lage);
+      gl.uniform1f(u.u_hankoA, hanko.a);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, hankoTex);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
       ritaHelskarm(gl);
     });
 
