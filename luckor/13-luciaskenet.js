@@ -2,14 +2,32 @@
 // Ett vitt stearinljus i en mässingsstake på ett träbord, i ett mörkt rum. Lågan
 // fladdrar och lyser upp väggen och bordet. För hon fingret nära lågan lutar den sig
 // undan som för ett drag och svajar tillbaka. Håller hon fingret länge mitt på lågan
-// kvävs den nästan helt, och växer sakta upp igen när hon släpper. Stearinet rinner långsamt i droppar.
+// kvävs den nästan helt, och växer sakta upp igen när hon släpper. Ljuset brinner
+// sakta ner, och stearinet rinner i tydliga spår längs de ojämna sidorna. Långt bort
+// spelar en speldosa Sankta Lucia, då och då.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
-import { brusKalla } from '../lib/ljud.js';
+import { brusKalla, rum } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
 import { mjuk, slump, klamp, rumsLjud, slinga, fingrar, stangning, brusstot } from '../lib/scen.js';
 
-const DROPPAR = 4;
+const DROPPAR = 8;
+
+// Sankta Lucia (Teodoro Cottrau 1849), i A-dur en oktav ner: [halvtoner från A4, åttondelar]
+const E = -5, Fis = -3, Gis = -1, A = 0, H = 2, Cis = 4, D = -7, Dis = -6, Ess = -6;
+const LUCIA = [
+  [E, 2], [E, 3], [A, 1], [A, 1], [Gis, 1], [Gis, 4], [D, 2], [D, 3], [Fis, 1], [Fis, 1], [E, 1], [E, 4],
+  [Cis - 12, 2], [Fis, 2], [E, 2], [E, 1], [Ess, 1], [D, 4], [D, 2], [Cis - 12, 2], [H - 12, 2], [Fis, 2], [E, 4],
+];
+const OMKVAD = (slut) => [
+  [Cis, 2], [H, 2], [A, 2], [Gis, 1], [Fis, 1], [H, 4], [H, 2], [A, 2], [Fis, 2], [Dis, 1], [E, 1], [A, 4],
+  [Cis, 1], [A, 1], [A, 1], [E, 1], [E, 1], [Cis - 12, 1], [D, 1], [H, 1], [H, 4], ...slut,
+];
+const MELODI = [
+  ...LUCIA,
+  ...OMKVAD([[H, 2], [Fis, 3], [Gis, 1], [H, 2], [A, 4]]),
+  ...OMKVAD([[H, 2], [Cis, 3], [H, 1], [H, 2], [A, 4]]),
+];
 
 const FS = `#version 300 es
 precision highp float;
@@ -20,14 +38,15 @@ uniform float u_luta;       // lågans lutning
 uniform float u_flamma;     // fladder, 0..1
 uniform float u_ljus;       // hur starkt ljuset är just nu
 uniform float u_kvav;       // 0 brinner fritt, 1 nästan slocknad
-uniform vec4 u_dropp[${DROPPAR}];  // x på ljuset (-1..1), längd, bredd, -
+uniform vec4 u_dropp[${DROPPAR}];  // vinkel runt ljuset, var den började, längd, bredd
+uniform float u_topp;       // hur högt ljuset är nu, det brinner sakta ner
 uniform float u_synlig;
 uniform vec2 u_ring;        // rökringen: tid sedan den släpptes, synlighet
 ${BRUS}
 
 const float LJ_B = 0.07;     // halva ljusets bredd
 const float BORD = 0.0;      // bordsskivan
-const float TOPP = 0.42;     // ljusets topp
+#define TOPP u_topp
 
 float laga(vec2 p, out float karna, out float bas) {
   // p relativt veken, y uppåt
@@ -78,26 +97,49 @@ void main() {
     c = massing * (0.3 + 0.7 * L);
   }
 
-  // Ljuset: vitt stearin som lyser inifrån nära lågan
-  if (abs(p.x) < LJ_B && p.y > 0.02 && p.y < TOPP) {
-    float cyl = sqrt(1.0 - pow(p.x / LJ_B, 2.0));
+  // Ljuset: vitt stearin som lyser inifrån nära lågan. Sidorna är lite ojämna, och
+  // stelnade rinnspår ligger som upphöjda strängar med en kula längst ner. Spåren följer
+  // ljusets rundning och blir smalare ut mot kanterna. Rinner de över kanten buktar
+  // siluetten ut.
+  float ojamn = 1.0 + 0.04 * (brus(vec2(p.y * 34.0, 2.0)) - 0.5) * 2.0 + 0.03 * (brus(vec2(p.y * 7.0, 5.0)) - 0.5) * 2.0;
+  float kantY = TOPP + 0.008 * (brus(vec2(p.x * 40.0, 7.0)) - 0.5) + 0.004 * sin(p.x * 60.0 + 1.0);
+  float spar = 0.0, sparLjus = 0.0, buk = 0.0;
+  for (int i = 0; i < ${DROPPAR}; i++) {
+    vec4 d = u_dropp[i];
+    if (d.z <= 0.0) continue;
+    float xs = sin(d.x), cosv = cos(d.x);
+    float start = min(d.y, TOPP), slut = d.y - d.z;
+    if (slut > TOPP) continue;
+    float ned = start - p.y;
+    float vag = xs + 0.025 * sin(p.y * 70.0 + d.x * 9.0) * cosv;
+    float b = d.w * cosv * (0.75 + 0.25 * smoothstep(0.0, 0.03, ned));
+    float u = (p.x / LJ_B - vag) / max(b, 0.01);
+    float langs = step(slut, p.y) * step(p.y, start + 0.004);
+    float rygg = sqrt(max(0.0, 1.0 - u * u)) * langs;
+    float kula = (p.y - slut) / (b * LJ_B * 1.4);
+    vec2 kd = vec2((p.x / LJ_B - vag) / (b * 1.35), kula * 1.1);
+    rygg = max(rygg, sqrt(max(0.0, 1.0 - dot(kd, kd))));
+    if (rygg > spar) { spar = rygg; sparLjus = -u * 0.6 + 0.4; }
+    // Spår ute vid kanten buktar ut siluetten
+    buk = max(buk, rygg * smoothstep(0.75, 0.98, abs(xs)) * step(0.0, p.x * xs));
+    // Där spåret började har stearinet runnit över kanten och gjort ett hack
+    kantY -= 0.006 * exp(-pow((p.x / LJ_B - xs) / 0.15, 2.0)) * step(TOPP - 0.002, d.y) * cosv;
+  }
+  float bw = LJ_B * ojamn + LJ_B * 0.08 * buk;
+  if (abs(p.x) < bw && p.y > 0.02 && p.y < kantY) {
+    float cyl = sqrt(max(0.0, 1.0 - pow(p.x / bw, 2.0)));
     float glod = exp(-(TOPP - p.y) * 9.0);
     vec3 vax = vec3(0.86, 0.82, 0.74) * (0.2 + 0.55 * cyl) * L + vec3(1.0, 0.7, 0.4) * glod * 0.55 * L;
-    // Stelnade droppar som runnit längs sidan
-    for (int i = 0; i < ${DROPPAR}; i++) {
-      vec4 d = u_dropp[i];
-      float dx = (p.x / LJ_B - d.x);
-      float ned = TOPP - p.y;
-      float bredd = d.z * (1.0 - smoothstep(d.y * 0.6, d.y, ned) * 0.6);
-      float inne = smoothstep(bredd, bredd * 0.4, abs(dx)) * step(ned, d.y) * smoothstep(d.y + 0.004, d.y - 0.01, ned);
-      float rund = smoothstep(0.012, 0.0, abs(ned - d.y + 0.006)) * smoothstep(bredd * 1.6, 0.0, abs(dx));
-      vax = mix(vax, vax * 1.18 + vec3(0.05, 0.04, 0.02) * L, max(inne, rund) * 0.8);
-    }
+    vax *= 0.95 + 0.1 * fbm(p * vec2(60.0, 20.0));
+    // Rinnspåren: ljusare och blankare, med en ljus sida och en skuggad
+    vec3 sparFarg = vax * (1.05 + 0.3 * sparLjus) + vec3(1.0, 0.85, 0.6) * pow(max(sparLjus, 0.0), 3.0) * 0.12 * L;
+    vax = mix(vax, sparFarg, smoothstep(0.0, 0.35, spar));
+    vax *= 1.0 - 0.25 * smoothstep(0.35, 0.0, spar) * step(0.001, spar);
     c = vax;
   }
-  // Ljusets topp: en grund smält grop som glänser
-  vec2 tp = (p - vec2(0.0, TOPP)) / vec2(LJ_B, 0.014);
-  if (length(tp) < 1.0) {
+  // Ljusets topp: en grund smält grop som glänser, med en ojämn kant
+  vec2 tp = (p - vec2(0.0, TOPP)) / vec2(LJ_B * ojamn, 0.014);
+  if (length(tp) < 1.0 && p.y < kantY + 0.008) {
     c = vec3(0.95, 0.85, 0.65) * (0.6 + 0.4 * (1.0 - length(tp))) * L + vec3(1.0, 0.7, 0.35) * 0.25 * L;
   }
   // Veken
@@ -152,11 +194,13 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_luta', 'u_flamma', 'u_ljus', 'u_kvav', 'u_dropp', 'u_synlig', 'u_ring']);
+    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_luta', 'u_flamma', 'u_ljus', 'u_kvav', 'u_dropp', 'u_synlig', 'u_ring', 'u_topp']);
 
     // Världen: x i bredder från mitten, y uppåt från bordet
     const varld = (cx, cy) => [(cx - duk.clientWidth / 2) / duk.clientWidth, (duk.clientHeight * 0.7 - cy) / duk.clientWidth];
-    const VEKE = [0, 0.445];
+    // Ljuset brinner sakta ner, ungefär en tiondel av sin höjd var tredje minut
+    let topp = 0.42;
+    const VEKE = [0, topp + 0.025];
 
     // ---------- Lågan ----------
     let luta = 0, lutaFart = 0, flamma = 0.2, malLuta = 0;
@@ -183,12 +227,19 @@ export default {
     }, { ett: true });
     let ring = { t: 99 };
 
-    // Stelnade droppar längs ljuset, och en som ibland rinner
-    const droppar = Array.from({ length: DROPPAR }, (_, i) => ({
-      x: slump(-0.8, 0.8), langd: i < 2 ? slump(0.03, 0.12) : 0, bredd: slump(0.08, 0.16), rinner: false,
-    }));
+    // Rinnspår längs ljuset: några stelnade från början, och nya som rinner medan det
+    // brinner. Varje spår har en vinkel runt ljuset, en höjd där det började, en längd
+    // och en bredd.
+    const droppar = Array.from({ length: DROPPAR }, (_, i) => i < 4
+      ? { v: slump(-1.3, 1.3), y: topp - slump(0, 0.02), langd: slump(0.05, 0.25), bredd: slump(0.09, 0.15), mal: 0, rinner: false }
+      : { v: 0, y: 0, langd: 0, bredd: 0, mal: 0, rinner: false });
     const droppData = new Float32Array(DROPPAR * 4);
-    let nastaDroppe = slump(15, 35);
+    let nastaDroppe = slump(8, 18), aldsta = 4;
+    function nyDroppe() {
+      const d = droppar[aldsta % DROPPAR];
+      aldsta++;
+      Object.assign(d, { v: slump(-1.35, 1.35), y: topp, langd: 0.002, bredd: slump(0.08, 0.15), mal: slump(0.06, Math.min(0.35, topp - 0.03)), rinner: true });
+    }
 
     // ---------- Ljud ----------
     const l = rumsLjud(1.2, 1.6);
@@ -201,17 +252,41 @@ export default {
     const fF = ctx.createBiquadFilter(); fF.type = 'bandpass'; fF.frequency.value = 280; fF.Q.value = 0.7;
     const fG = ctx.createGain(); fG.gain.value = 0;
     fladder.connect(fF).connect(fG).connect(ut);
-    // En nästan ohörbar varm ton, som stillhet i rummet
-    const ton = ctx.createGain(); ton.gain.value = 0;
-    [196, 293.66, 392].forEach((f, i) => {
-      const o = ctx.createOscillator(); o.frequency.value = f;
-      const g = ctx.createGain(); g.gain.value = [0.5, 0.3, 0.15][i];
-      o.connect(g).connect(ton); o.start(); l.kallor.push(o);
-    });
-    const tonF = ctx.createBiquadFilter(); tonF.type = 'lowpass'; tonF.frequency.value = 500;
-    ton.connect(tonF).connect(ut);
-    ton.gain.setTargetAtTime(0.018, ctx.currentTime + 1, 3);
-    l.kallor.push(rumston, fladder);
+    // Sankta Lucia, svagt och långt bort, som en speldosa i ett annat rum. Den spelar en
+    // gång, och efter en lång stunds tystnad igen.
+    const musik = ctx.createGain(); musik.gain.value = 1;
+    const musikF = ctx.createBiquadFilter(); musikF.type = 'lowpass'; musikF.frequency.value = 2400;
+    const musikEko = rum(3.5);
+    const ekoG = ctx.createGain(); ekoG.gain.value = 0.55;
+    musik.connect(musikF).connect(ut);
+    musikF.connect(musikEko).connect(ekoG).connect(ut);
+    function ton(f, t, styrka) {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(styrka, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+      for (const [k, a] of [[1, 1], [2, 0.22], [3, 0.06], [4.2, 0.025]]) {
+        const o = ctx.createOscillator();
+        o.frequency.value = f * k;
+        const og = ctx.createGain(); og.gain.value = a;
+        o.connect(og).connect(g);
+        o.start(t); o.stop(t + 2.3);
+      }
+      g.connect(musik);
+    }
+    const ATTONDEL = 0.3;
+    let musikTimer = 0;
+    function spelaLucia() {
+      let t = ctx.currentTime + 0.3;
+      for (const [halvton, langd] of MELODI) {
+        ton(440 * Math.pow(2, halvton / 12), t, 0.014 * slump(0.85, 1));
+        t += langd * ATTONDEL * slump(0.97, 1.03);
+      }
+      const sek = t - ctx.currentTime;
+      musikTimer = setTimeout(spelaLucia, (sek + slump(40, 70)) * 1000);
+    }
+    musikTimer = setTimeout(spelaLucia, slump(4, 8) * 1000);
+    l.kallor.push(rumston, fladder, { stop: () => clearTimeout(musikTimer) });
 
     // ---------- Ritslinga ----------
     let knappTid = slump(3, 9);
@@ -239,23 +314,21 @@ export default {
       const flimmer = 0.92 + 0.05 * Math.sin(tid * 7.1) * Math.sin(tid * 3.3) + 0.06 * flamma * Math.sin(tid * 17.0);
 
       // Droppar: ibland börjar en ny rinna, långsamt
-      nastaDroppe -= dt;
-      if (nastaDroppe <= 0) {
-        const d = droppar.find((x) => !x.rinner && x.langd === 0) ?? droppar[Math.floor(Math.random() * DROPPAR)];
-        Object.assign(d, { x: slump(-0.85, 0.85), langd: 0.004, bredd: slump(0.08, 0.15), rinner: true, mal: slump(0.06, 0.2) });
-        nastaDroppe = slump(25, 50);
-      }
+      // Ljuset brinner sakta ner, och ibland rinner stearin över kanten och nedför sidan
+      topp = Math.max(0.14, topp - dt * 0.00025 * (1 - 0.8 * kvav));
+      VEKE[1] = topp + 0.025;
+      nastaDroppe -= dt * (1 - kvav);
+      if (nastaDroppe <= 0) { nyDroppe(); nastaDroppe = slump(18, 40); }
       for (const d of droppar) {
         if (!d.rinner) continue;
-        d.langd += dt * 0.004 * (1 - d.langd / d.mal);
-        if (d.langd > d.mal * 0.97) d.rinner = false;
+        d.langd += dt * 0.012 * Math.max(0.08, 1 - d.langd / d.mal);
+        if (d.langd > d.mal * 0.98) d.rinner = false;
       }
-      droppar.forEach((d, i) => droppData.set([d.x, d.langd, d.bredd, 0], i * 4));
+      droppar.forEach((d, i) => droppData.set([d.v, d.y, d.langd, d.bredd], i * 4));
 
       // Ljud: fladder i draget, och ett litet knäpp från veken ibland
       const t = ctx.currentTime;
       fG.gain.setTargetAtTime((0.06 * Math.max(0, flamma - 0.2) + 0.02 * Math.abs(lutaFart) * 0.1) * (1 - kvav), t, 0.06);
-      ton.gain.setTargetAtTime(0.018 * (1 - 0.6 * kvav), t, 0.5);
       knappTid -= dt;
       if (knappTid <= 0 && kvav < 0.3) {
         brusstot(ctx, ut, { frekvens: slump(2500, 6000), q: 1.5, styrka: slump(0.03, 0.08), langd: 0.0007, nar: t });
@@ -270,6 +343,7 @@ export default {
       gl.uniform1f(u.u_ljus, flimmer * (1 - 0.15 * Math.abs(luta)) * (1 - 0.9 * kvav));
       gl.uniform1f(u.u_kvav, kvav);
       gl.uniform4fv(u.u_dropp, droppData);
+      gl.uniform1f(u.u_topp, topp);
       gl.uniform1f(u.u_synlig, mjuk(0, 3, tid));
       ring.t += dt;
       gl.uniform2f(u.u_ring, ring.t, ring.t > 7 ? 0 : mjuk(0.1, 0.8, ring.t) * (1 - mjuk(2.5, 6.5, ring.t)));
