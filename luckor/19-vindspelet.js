@@ -34,12 +34,78 @@ uniform vec4 u_segel;          // x, y, vinkel, -
 uniform vec2 u_skiva;          // skivans mitt
 uniform float u_tid;
 uniform float u_synlig;
+uniform vec4 u_fagel;          // talgoxen: x, y (fötterna), riktning (1 höger, -1 vänster), stjärtvipp
+uniform vec4 u_fagel2;         // synlighet, vingslagens fas, flyger (0..1), -
 ${BRUS}
 
 float kapsel(vec2 p, vec2 a, vec2 b, float r) {
   vec2 pa = p - a, ba = b - a;
   float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
   return length(pa - ba * h) - r;
+}
+
+// Avstånd till en vriden ellips, ungefärligt
+float ellips(vec2 p, vec2 c, vec2 r, float v) {
+  vec2 d = p - c;
+  float cv = cos(v), sv = sin(v);
+  d = vec2(cv * d.x + sv * d.y, -sv * d.x + cv * d.y);
+  return (length(d / r) - 1.0) * min(r.x, r.y);
+}
+
+// En talgoxe från sidan: svart huvud med vit kind, gult bröst, olivgrön rygg, blågrå
+// vingar med ett vitt vingband och en lång, smal stjärt. Sitter den står den lite
+// framåtlutad på fötterna. Flyger den syns vingarna utbredda och slår. Allt i
+// kroppslängder, med fötterna i origo. Returnerar färg och täckning.
+vec4 talgoxe(vec2 p, vec4 f, vec4 f2) {
+  float B = 0.048;
+  vec2 q = (p - f.xy) / B;
+  q.x *= f.z;
+  float flyg = f2.z;
+  q.y -= 0.15 * flyg;
+  float kant = 0.035;
+  float kropp = ellips(q, vec2(0.0, 0.55), vec2(0.62, 0.4), mix(-0.4, -0.05, flyg));
+  vec2 hc = vec2(mix(0.52, 0.68, flyg), mix(0.95, 0.75, flyg));
+  float huvud = length(q - hc) - 0.27;
+  float nabb = kapsel(q, hc + vec2(0.24, -0.02), hc + vec2(0.4, -0.05), 0.04);
+  float stv = f.w * 0.5 * (1.0 - flyg);
+  vec2 stA = vec2(-0.5, 0.48), stB = stA + vec2(-cos(0.32 + stv), -sin(0.32 + stv)) * 0.72;
+  stB = mix(stB, vec2(-1.25, 0.6), flyg);
+  float stjart = kapsel(q, stA, stB, 0.085);
+  // Vingen: ihopfälld längs sidan när den sitter, utbredd och slående i flykten
+  float slag = sin(f2.y);
+  float vinge = mix(
+    ellips(q, vec2(-0.2, 0.7), vec2(0.42, 0.15), -0.3),
+    ellips(q, vec2(0.0, 0.75 + 0.55 * slag), vec2(0.35, 0.5 + 0.3 * abs(slag)), 0.0),
+    flyg);
+  float ben = min(kapsel(q, vec2(0.05, 0.2), vec2(0.0, 0.0), 0.03), kapsel(q, vec2(0.2, 0.2), vec2(0.22, 0.0), 0.03));
+  ben = mix(ben, 9.0, flyg);
+  float d = min(min(kropp, huvud), min(min(nabb, stjart), min(vinge, ben)));
+  float a = smoothstep(kant, -kant, d);
+  if (a <= 0.0) return vec4(0.0);
+  // Färgerna: olivgrön rygg, gult bröst framtill och nedtill
+  vec3 col = vec3(0.4, 0.44, 0.22);
+  float brost = smoothstep(0.15, -0.1, ellips(q, vec2(0.2, 0.3), vec2(0.5, 0.36), -0.45));
+  col = mix(col, vec3(0.93, 0.8, 0.22), brost);
+  // Den svarta strimman längs bröstet syns i framkanten
+  col = mix(col, vec3(0.05), smoothstep(-0.07, -0.02, kropp) * step(0.25, q.x) * step(q.y, 0.75) * brost);
+  // Huvudet: svart hätta och haklapp, med en stor vit kind som går bakåt
+  float hd = smoothstep(kant, -kant, huvud);
+  col = mix(col, vec3(0.04, 0.04, 0.05), hd);
+  col = mix(col, vec3(0.04, 0.04, 0.05), smoothstep(0.02, -0.02, ellips(q, hc + vec2(0.08, -0.32), vec2(0.17, 0.13), 0.3)));
+  float kind = smoothstep(0.02, -0.02, ellips(q, hc + vec2(-0.04, -0.07), vec2(0.21, 0.12), -0.15));
+  col = mix(col, vec3(0.94, 0.94, 0.9), kind * hd * (1.0 - flyg * 0.4));
+  // Vingen: blågrå med ett vitt vingband, och stjärten blågrå
+  float vg = smoothstep(kant, -kant, vinge);
+  col = mix(col, vec3(0.38, 0.43, 0.52), vg);
+  col = mix(col, vec3(0.92, 0.93, 0.92), smoothstep(0.05, 0.02, abs(q.x + 0.12 - (q.y - 0.7) * 0.6)) * vg * (1.0 - flyg));
+  col = mix(col, vec3(0.3, 0.34, 0.42), smoothstep(kant, -kant, stjart) * (1.0 - smoothstep(kant, -kant, kropp)));
+  col = mix(col, vec3(0.2, 0.2, 0.22), smoothstep(kant, -kant, nabb));
+  col = mix(col, vec3(0.3, 0.3, 0.33), smoothstep(kant, -kant, ben));
+  // Ögat glimmar i den svarta hättan
+  col += vec3(0.7) * smoothstep(0.05, 0.0, length(q - hc - vec2(0.13, 0.08))) * (1.0 - flyg);
+  // Skymningen: lite mörkare, varmt ljus underifrån
+  col *= 0.72 + 0.15 * smoothstep(1.2, 0.0, q.y);
+  return vec4(col, a * f2.x);
 }
 
 void main() {
@@ -112,6 +178,12 @@ void main() {
   vec2 sk = (p - u_skiva) / vec2(${(RING * 1.35).toFixed(4)}, 0.024);
   if (length(sk) < 1.0) c = mix(vec3(0.3, 0.18, 0.09), vec3(0.52, 0.32, 0.17), 0.5 + 0.5 * sk.y) * (0.8 + 0.25 * fbm(sk * 8.0));
 
+  // Talgoxen som ibland sätter sig på skivan
+  if (u_fagel2.x > 0.0) {
+    vec4 tg = talgoxe(p, u_fagel, u_fagel2);
+    c = mix(c, tg.rgb, tg.a);
+  }
+
   c *= u_synlig;
   frag = vec4(dither(c, gl_FragCoord.xy, u_tid), 1.0);
 }`;
@@ -121,7 +193,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_ror', 'u_ror2', 'u_klapp', 'u_segel', 'u_skiva', 'u_tid', 'u_synlig']);
+    const u = platser(gl, prog, ['u_res', 'u_ror', 'u_ror2', 'u_klapp', 'u_segel', 'u_skiva', 'u_tid', 'u_synlig', 'u_fagel', 'u_fagel2']);
 
     const H = () => duk.clientHeight / duk.clientWidth;
     const skivaY = () => H() * 0.8;
@@ -220,10 +292,58 @@ export default {
       segel.vinkel += ((klapp.vx * 0.8 + vindX * 0.6) - segel.vinkel) * Math.min(1, dt * 3);
     }
 
+    // ---------- Talgoxen ----------
+    // Har ingen rört skärmen eller telefonen på en lång stund flyger en talgoxe in, i
+    // mesens studsande flykt, och sätter sig på skivan. Där vänder den sig ibland och
+    // vippar på stjärten. Rör hon skärmen, sveper eller lutar telefonen flyger den.
+    // Vindspelets egna byar skrämmer den inte.
+    let lugn = 0, fagel = null, fagelVila = 0, forraLut = [0, 0];
+    function stord() { lugn = 0; if (fagel && fagel.lage !== 'flyr') fagelFlyr(); }
+    function fagelFlyr() {
+      Object.assign(fagel, { lage: 'flyr', t: 0, fx: fagel.x, fy: fagel.y, tx: fagel.x + fagel.rikt * slump(0.6, 0.9), ty: fagel.y + slump(0.4, 0.7) });
+    }
+    function fagelRor(dt, sy) {
+      lugn += dt;
+      fagelVila -= dt;
+      if (Math.abs(lutning - forraLut[0]) > 0.06 || Math.abs(lutningZ - forraLut[1]) > 0.06) { forraLut = [lutning, lutningZ]; stord(); }
+      if (!fagel) {
+        if (lugn > 25 && fagelVila <= 0) {
+          const fran = Math.random() < 0.5 ? -1 : 1;
+          const tx = 0.5 + slump(-0.12, 0.12);
+          fagel = { lage: 'kommer', t: 0, fx: fran < 0 ? -0.15 : 1.15, fy: sy + slump(0.25, 0.45), tx, ty: sy + 0.022, rikt: -fran, x: 0, y: 0, vipp: 0, vippT: slump(2, 5), vand: slump(4, 9), fas: 0 };
+        }
+        return null;
+      }
+      const F = fagel;
+      F.fas += dt * 30;
+      if (F.lage === 'kommer' || F.lage === 'flyr') {
+        const T = F.lage === 'kommer' ? 2.2 : 1.4;
+        F.t = Math.min(1, F.t + dt / T);
+        const e = F.lage === 'kommer' ? 1 - Math.pow(1 - F.t, 2) : F.t * F.t;
+        // Mesar flyger i bågar: några vingslag uppåt, sedan ett kort glid med fällda vingar
+        const bage = Math.sin(F.t * Math.PI * 4) * 0.025 * (1 - F.t);
+        F.x = F.fx + (F.tx - F.fx) * e;
+        F.y = F.fy + (F.ty - F.fy) * e + bage + (F.lage === 'kommer' ? Math.sin(F.t * Math.PI) * 0.05 : 0);
+        if (F.lage === 'kommer' && F.t >= 1) { F.lage = 'sitter'; F.x = F.tx; F.y = F.ty; }
+        if (F.lage === 'flyr' && F.t >= 1) { fagel = null; fagelVila = 60; return null; }
+        const glid = Math.sin(F.t * Math.PI * 4) < -0.3;
+        return [F.x, F.y, F.rikt, 0, 1, glid ? 1.2 : F.fas, 1];
+      }
+      // Sitter: vippar på stjärten och vänder sig ibland med ett litet hopp
+      F.vippT -= dt;
+      if (F.vippT <= 0) { F.vipp = 1; F.vippT = slump(2, 6); }
+      F.vipp *= Math.exp(-dt * 6);
+      F.vand -= dt;
+      let hopp = 0;
+      if (F.vand <= 0) { F.rikt = -F.rikt; F.vand = slump(4, 10); F.hoppT = 0.25; }
+      if (F.hoppT > 0) { F.hoppT -= dt; hopp = Math.sin(Math.max(0, F.hoppT) / 0.25 * Math.PI) * 0.012; }
+      return [F.x, F.y + hopp, F.rikt, F.vipp, 1, 0, 0];
+    }
+
     // ---------- Fingret ----------
     let forra = null;
     fingrar(duk, {
-      ner: (x, y, id, e) => { forra = { x, t: e.timeStamp }; },
+      ner: (x, y, id, e) => { forra = { x, t: e.timeStamp }; stord(); },
       drag: (x, y, id, e) => {
         if (forra) {
           const v = (x - forra.x) / duk.clientWidth / Math.max(0.008, (e.timeStamp - forra.t) / 1000);
@@ -276,6 +396,11 @@ export default {
       gl.uniform2f(u.u_skiva, 0.5, sy);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
+      const fg = fagelRor(dt, sy);
+      if (fg) {
+        gl.uniform4f(u.u_fagel, fg[0], fg[1], fg[2], fg[3]);
+        gl.uniform4f(u.u_fagel2, fg[4], fg[5], fg[6], 0);
+      } else gl.uniform4f(u.u_fagel2, 0, 0, 0, 0);
       ritaHelskarm(gl);
     });
 
