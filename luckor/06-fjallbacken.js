@@ -28,6 +28,8 @@ uniform int u_antal;
 uniform vec4 u_lov[${LOV}];  // x, y, vinkel, storlek
 uniform float u_tid;
 uniform float u_synlig;
+uniform vec4 u_oring;        // öringen: x, y (skärmbredder, y nedåt), riktning, simtagens fas
+uniform vec2 u_oringA;       // öringens synlighet och hur kraftigt den simmar
 ${BRUS}
 
 // Cellmönster: avstånd till närmaste och näst närmaste punkt, och cellens id
@@ -89,6 +91,44 @@ float solkatter(vec2 p) {
   return pow(1.0 - abs(a - b), 9.0);
 }
 
+// En öring sedd uppifrån genom vattnet: olivbrun rygg med mörka prickar, ljusare sidor,
+// bröstfenor och bukfenor, och en kluven stjärtfena. Kroppen slingrar sig i en våg
+// bakåt mot stjärten. d är i skärmbredder relativt fisken, a är riktningen (0 = uppåt,
+// mot strömmen). Returnerar färg och täckning.
+vec4 oring(vec2 d, float a, float fas, float sim) {
+  float L = 0.15;
+  vec2 fw = vec2(sin(a), -cos(a)), sd = vec2(cos(a), sin(a));
+  float lng = dot(d, fw), lat = dot(d, sd);
+  float s = 0.5 - lng / L;
+  if (s < -0.05 || s > 1.05) return vec4(0.0);
+  lat -= mix(0.03, 0.075, sim) * L * s * s * sin(fas - s * 5.0);
+  float w = L * 0.12 * pow(clamp(s / 0.3, 0.0, 1.0), 0.45) * mix(1.0, 0.22, smoothstep(0.3, 0.8, s));
+  float al = abs(lat);
+  float kropp = step(0.0, s) * step(s, 0.82) * smoothstep(w, w * 0.8, al);
+  float st = clamp((s - 0.78) / 0.22, 0.0, 1.0);
+  float sw = L * mix(0.025, 0.1, st);
+  float klyka = step(0.93, s) * step(al, (s - 0.93) / 0.07 * 0.035 * L);
+  float stjart = step(0.78, s) * step(s, 1.0) * smoothstep(sw, sw * 0.7, al) * (1.0 - klyka);
+  float bf = step(0.24, s) * step(s, 0.4) * smoothstep(w + L * 0.055 * (1.0 - (s - 0.24) / 0.16), w, al) * step(w * 0.7, al);
+  float bu = step(0.55, s) * step(s, 0.63) * smoothstep(w + L * 0.03, w, al) * step(w * 0.7, al);
+  float fen = max(bf, bu);
+  float tack = max(kropp, max(stjart * 0.9, fen * 0.5));
+  if (tack <= 0.0) return vec4(0.0);
+  float sida = smoothstep(0.1, 1.0, al / max(w, 1e-4));
+  vec3 col = mix(vec3(0.25, 0.24, 0.16), vec3(0.47, 0.43, 0.27), sida);
+  col *= 1.0 - 0.15 * smoothstep(0.15, 0.0, s);
+  vec2 pc = vec2(lat, lng) * 230.0;
+  vec2 pf = fract(pc) - 0.5;
+  float prick = step(0.72, hash(floor(pc))) * smoothstep(0.32, 0.15, length(pf)) * step(s, 0.76);
+  col = mix(col, vec3(0.08, 0.07, 0.05), prick * 0.8);
+  col = mix(col, vec3(0.3, 0.28, 0.2), max(stjart, fen) * (1.0 - kropp));
+  for (int i = 0; i < 2; i++) {
+    float sg = i == 0 ? -1.0 : 1.0;
+    col = mix(col, vec3(0.04), smoothstep(0.0028, 0.0014, length(vec2(lat - sg * w * 0.6, (s - 0.09) * L))));
+  }
+  return vec4(col, tack);
+}
+
 void main() {
   vec2 uv = gl_FragCoord.xy / u_res;
   vec2 tc = vec2(uv.x, 1.0 - uv.y);
@@ -121,6 +161,15 @@ void main() {
   // Skugga runt stenarna där de ligger an mot sanden
   botten *= 0.82 + 0.18 * smoothstep(0.0, 0.25, 1.0 - sten.a);
   botten = mix(botten, sten.rgb * (0.92 + 0.12 * fbm(b * 5.0)), sten.a);
+
+  // Öringen som står i lä bakom fingret, under vattenytan, med sin skugga på botten
+  if (u_oringA.x > 0.0) {
+    vec2 od = sc + n.xy * 0.006 - u_oring.xy;
+    vec4 sk = oring(od - vec2(0.012, -0.016), u_oring.z, u_oring.w, u_oringA.y);
+    botten *= 1.0 - 0.35 * sk.a * u_oringA.x;
+    vec4 fisk = oring(od, u_oring.z, u_oring.w, u_oringA.y);
+    botten = mix(botten, fisk.rgb, fisk.a * u_oringA.x);
+  }
 
   // Solkatter som rör sig med strömmen
   float sk = solkatter(q0 * 1.3) * w0 + solkatter(q1 * 1.3) * (1.0 - w0);
@@ -195,7 +244,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_flode', 'u_rut', 'u_sten', 'u_antal', 'u_lov', 'u_tid', 'u_synlig']);
+    const u = platser(gl, prog, ['u_res', 'u_flode', 'u_rut', 'u_sten', 'u_antal', 'u_lov', 'u_tid', 'u_synlig', 'u_oring', 'u_oringA']);
 
     // ---------- Vätskan ----------
     const vatska = skapaVatska(W, H, { iterationer: 24 });
@@ -317,6 +366,51 @@ export default {
       upp: () => { finger.nere = false; },
     }, { ett: true });
 
+    // ---------- Öringen ----------
+    // Håller hon fingret stilla en stund simmar en öring upp underifrån och ställer sig i
+    // lä bakom fingerstenen, med huvudet mot strömmen, så som öringar står bakom stenar.
+    // Den håller sig kvar med lugna slag och små svaj. Rör hon fingret eller lyfter det
+    // pilar den iväg nedströms.
+    const oring = { lage: 'borta', x: 0, y: 0, v: 0, fas: 0, sim: 0, a: 0, vila: 0 };
+    let stillaTid = 0, ref = null;
+    function oringRor(dt, tid) {
+      oring.vila -= dt;
+      // Hur länge fingret har legat stilla
+      if (finger.nere && ref && Math.hypot(finger.x - ref.x, finger.y - ref.y) < 1.2) stillaTid += dt;
+      else { stillaTid = 0; ref = finger.nere ? { x: finger.x, y: finger.y } : null; }
+      const lax = finger.x, lay = finger.y + FINGER_R + 4.5;
+      if (oring.lage === 'borta') {
+        if (stillaTid > 5 && oring.vila <= 0 && lay < H - 4) {
+          Object.assign(oring, { lage: 'kommer', x: lax + slump(-8, 8), y: H + 8, v: 0, a: 0 });
+        }
+        return;
+      }
+      if (oring.lage !== 'flyr' && (!finger.nere || stillaTid === 0)) {
+        oring.lage = 'flyr';
+        oring.v = slump(-0.7, 0.7) + Math.PI;
+      }
+      if (oring.lage === 'kommer' || oring.lage === 'star') {
+        const sv = oring.lage === 'star' ? Math.sin(tid * 0.7) * 0.35 : 0;
+        const dx = lax + sv - oring.x, dy = lay - oring.y, d = Math.hypot(dx, dy);
+        const fart = oring.lage === 'kommer' ? Math.min(12, d * 2.5 + 1) : Math.min(4, d * 3);
+        if (d > 0.01) { oring.x += (dx / d) * Math.min(d, fart * dt); oring.y += (dy / d) * Math.min(d, fart * dt); }
+        const malV = oring.lage === 'kommer' && d > 1.5 ? Math.atan2(dx, -dy) : 0.06 * Math.sin(tid * 0.9);
+        oring.v += (malV - oring.v) * Math.min(1, dt * 3);
+        oring.sim += ((oring.lage === 'kommer' ? 1 : 0.35) - oring.sim) * Math.min(1, dt * 2);
+        oring.fas += dt * (oring.lage === 'kommer' ? 14 : 6);
+        oring.a = Math.min(1, oring.a + dt * 1.5);
+        if (oring.lage === 'kommer' && d < 0.4) oring.lage = 'star';
+      } else {
+        // Flyr: ett snabbt ryck nedströms och bort
+        oring.x += Math.sin(oring.v) * 38 * dt;
+        oring.y += -Math.cos(oring.v) * 38 * dt;
+        oring.sim = 1.5;
+        oring.fas += dt * 24;
+        oring.a = Math.max(0, oring.a - dt * 1.6);
+        if (oring.a <= 0 || oring.y > H + 10 || oring.x < -10 || oring.x > W + 10) { oring.lage = 'borta'; oring.vila = 15; oring.a = 0; }
+      }
+    }
+
     // ---------- Ritslinga ----------
     const fysik = fastaSteg(1 / 60, 4);
     const stoppa = slinga((tid, dt) => {
@@ -355,6 +449,9 @@ export default {
       gl.uniform4fv(u.u_lov, lovData);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
+      oringRor(dt, tid);
+      gl.uniform4f(u.u_oring, oring.x / W, (oring.y / H) * asp(), oring.v, oring.fas);
+      gl.uniform2f(u.u_oringA, oring.lage === 'borta' ? 0 : oring.a, Math.min(1, oring.sim));
       ritaHelskarm(gl);
       void asp;
     });
