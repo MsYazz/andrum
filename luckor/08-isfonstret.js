@@ -23,6 +23,7 @@ uniform vec3 u_varme;   // fingrets värme: x, y (0..1, y nedåt), styrka
 uniform float u_tid;
 uniform float u_synlig;
 uniform vec4 u_alg;      // älgen: x, riktning (1 eller -1), gångens fas, synlighet
+uniform vec2 u_algSpar;  // hennes spår i snön: från x, till x
 ${BRUS}
 
 // En kapsel: avstånd till en sträcka med radie som går från ra till rb
@@ -37,10 +38,11 @@ float ell(vec2 p, vec2 c, vec2 r) { return (length((p - c) / r) - 1.0) * min(r.x
 // klocka under halsen, långa ben med ljusa underben. Hon går i fyrtakt, och
 // baklänges knäleder (hasorna) pekar bakåt. Allt i mankhöjder. Returnerar täckning
 // för kroppen (x) och de ljusa underbenen (y).
+const float ALG_MARK = 0.2;   // snöfältet framför stugan där hon går, på jämn höjd
+const float ALG_H = 0.16;     // mankhöjden
 vec2 alg(vec2 p, vec4 a) {
-  float H = 0.12;
-  float mark = 0.42 + 0.06 * sin(a.x * 3.1 + 1.0) + 0.04 * sin(a.x * 7.3) - 0.11;
-  vec2 q = (p - vec2(a.x, mark)) / H;
+  float H = ALG_H;
+  vec2 q = (p - vec2(a.x, ALG_MARK)) / H;
   q.x *= a.y;
   float ph = a.z * 6.2832;
   float gung = 0.012 * sin(ph * 2.0);
@@ -102,12 +104,6 @@ vec3 utsikt(vec2 p, float suddig) {
       if (abs(p.x - gx) < bredd) c = vec3(0.025, 0.04, 0.05) + vec3(0.1, 0.12, 0.16) * step(0.6, fract(rel * 6.0)) * 0.4;
     }
   }
-  // Älgen som ibland går förbi över snöfältet
-  if (u_alg.w > 0.0) {
-    vec2 al = alg(p, u_alg);
-    c = mix(c, vec3(0.045, 0.035, 0.03), al.x);
-    c = mix(c, vec3(0.2, 0.2, 0.22), al.y);
-  }
   // Stugan med två varma fönster
   vec2 s = p - vec2(0.62, 0.36);
   if (abs(s.x) < 0.09 && s.y > 0.0 && s.y < 0.07) c = vec3(0.12, 0.06, 0.05);
@@ -119,6 +115,29 @@ vec3 utsikt(vec2 p, float suddig) {
   // Skenet från fönstren, bredare när glaset är frostat
   float sken = exp(-dot(f1, f1) / (0.002 + suddig * 0.02)) + exp(-dot(f2, f2) / (0.002 + suddig * 0.02));
   c += varm * sken * (0.25 + suddig * 0.5);
+  // Älgens spår i snön: två rader hovavtryck, där bakhovarna sätts i framhovarnas spår
+  if (u_algSpar.y != u_algSpar.x) {
+    float a0 = min(u_algSpar.x, u_algSpar.y), a1 = max(u_algSpar.x, u_algSpar.y);
+    float steg = 0.13;
+    for (int rad = 0; rad < 2; rad++) {
+      float ry = ALG_MARK + (rad == 0 ? -0.006 : 0.005);
+      float rx = p.x + (rad == 0 ? 0.0 : steg * 0.5);
+      float cx = (floor(rx / steg) + 0.5) * steg - (rad == 0 ? 0.0 : steg * 0.5);
+      if (cx > a0 && cx < a1) {
+        vec2 hd = (p - vec2(cx, ry)) / vec2(0.009, 0.0035);
+        float hov = smoothstep(1.0, 0.6, length(hd));
+        float kant = smoothstep(1.6, 1.0, length(hd)) * (1.0 - hov);
+        c = mix(c, vec3(0.13, 0.15, 0.24), hov * (rad == 0 ? 0.8 : 0.6));
+        c += vec3(0.08, 0.09, 0.12) * kant * step(0.0, hd.y);
+      }
+    }
+  }
+  // Älgen, på snöfältet framför stugan
+  if (u_alg.w > 0.0) {
+    vec2 al = alg(p, u_alg);
+    c = mix(c, vec3(0.045, 0.035, 0.03), al.x);
+    c = mix(c, vec3(0.2, 0.2, 0.22), al.y);
+  }
   // Några få snöflingor som faller långsamt
   for (int i = 0; i < 2; i++) {
     float sk = 20.0 + float(i) * 14.0;
@@ -191,7 +210,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_frost', 'u_rut', 'u_varme', 'u_tid', 'u_synlig', 'u_alg']);
+    const u = platser(gl, prog, ['u_res', 'u_frost', 'u_rut', 'u_varme', 'u_tid', 'u_synlig', 'u_alg', 'u_algSpar']);
 
     // ---------- Frosten ----------
     const N = FW * FH;
@@ -328,10 +347,13 @@ export default {
     l.kallor.push(rumston, gnid, gnissel, ...vind.kallor);
 
     // ---------- Älgen ----------
-    // Då och då går en älgko förbi över snöfältet utanför. Ju mer igenfrostad rutan är,
-    // desto långsammare går hon, och när rutan nästan är täckt stannar hon nästan helt,
-    // så att man får smälta ett titthål för att se henne.
-    let alg = null, tillAlg = slump(15, 30), tackning = 0, tackTid = 0;
+    // När rutan har frostat igen kommer en älgko långsamt gående över snöfältet framför
+    // stugan. Genom frosten skymtar man henne bara, så man får smälta ett titthål för att
+    // se henne. Hon lämnar spår i snön och stannar ungefär två tredjedelar in på rutan,
+    // där hon står kvar en lång stund innan hon går vidare.
+    let algSpar = [0, 0];
+    let alg = null, tillAlg = 45, tackning = 0, tackTid = 0;
+    const ALG_FART = 0.018;
     function algRor(dt) {
       tackTid -= dt;
       if (tackTid <= 0) {
@@ -342,17 +364,24 @@ export default {
       }
       if (!alg) {
         tillAlg -= dt;
-        if (tillAlg <= 0) {
+        if (tillAlg <= 0 && tackning > 0.62) {
           const hoger = Math.random() < 0.5;
-          alg = { x: hoger ? -0.15 : 1.15, rikt: hoger ? 1 : -1, fas: 0 };
+          const x = hoger ? -0.2 : 1.2;
+          alg = { x, rikt: hoger ? 1 : -1, fas: 0, stopp: hoger ? 0.67 : 0.33, star: 0, startX: x, gatt: false };
         }
         return;
       }
-      // Fem steg i sekunden blir för fort, en lugn älg tar knappt ett steg i sekunden
-      const fart = 0.06 * (1 - 0.92 * mjuk(0.55, 0.85, tackning));
-      alg.x += alg.rikt * fart * dt;
-      alg.fas += fart * dt / 0.11;
-      if (alg.x < -0.2 || alg.x > 1.2) { alg = null; tillAlg = slump(90, 160); }
+      const vidStopp = !alg.gatt && Math.abs(alg.x - alg.stopp) < 0.005;
+      if (vidStopp && alg.star === 0) alg.star = slump(150, 240);
+      if (alg.star > 0) {
+        alg.star -= dt;
+        if (alg.star <= 0) { alg.gatt = true; alg.star = 0; }
+        return;
+      }
+      alg.x += alg.rikt * ALG_FART * dt;
+      if (!alg.gatt && (alg.x - alg.stopp) * alg.rikt > 0) alg.x = alg.stopp;
+      alg.fas += ALG_FART * dt / 0.13;
+      if (alg.x < -0.3 || alg.x > 1.3) { alg = null; tillAlg = slump(300, 500); }
     }
 
     // ---------- Ritslinga ----------
@@ -389,6 +418,8 @@ export default {
       gl.uniform1f(u.u_synlig, mjuk(0, 3, tid));
       algRor(dt);
       gl.uniform4f(u.u_alg, alg ? alg.x : 0, alg ? alg.rikt : 1, alg ? alg.fas : 0, alg ? 1 : 0);
+      if (alg) algSpar = [alg.startX, alg.x - alg.rikt * 0.04];
+      gl.uniform2f(u.u_algSpar, algSpar[0], algSpar[1]);
       ritaHelskarm(gl);
     });
 
