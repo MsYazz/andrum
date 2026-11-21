@@ -7,7 +7,7 @@
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
 import { brusKalla } from '../lib/ljud.js';
 import { BRUS } from '../lib/glsl.js';
-import { mjuk, slump, rumsLjud, slinga, fingrar, stangning } from '../lib/scen.js';
+import { mjuk, slump, rumsLjud, slinga, fingrar, stangning, brusstot } from '../lib/scen.js';
 import { skapaMatta, skapaLjudbank } from '../lib/inspelning.js';
 
 // De enskilda vågorna i inspelningen av mjuka vågor på sand, [start, längd]
@@ -30,6 +30,8 @@ uniform vec4 u_kvist;       // en liten avbruten sidokvist: från, till
 uniform float u_pa;         // hur synlig pinnen är
 uniform float u_lyft;       // 1 när kvisten svävar över sanden, 0 när spetsen ristar
 uniform vec4 u_avtryck;     // fingeravtrycket där man håller: x, y, riktning, synlighet
+uniform vec4 u_tumlare;     // tumlaren: x, y (som sanden, y nedåt), rullningens fas (0..1), riktning
+uniform float u_tumlareA;   // synlig när den är i ytan
 uniform vec4 u_fynd[4];     // sådant vågen lämnat: x, y (som sanden, y nedåt), sort + vinkel, synlighet
 ${BRUS}
 
@@ -188,6 +190,34 @@ void main() {
     vec3 hav = vec3(0.06, 0.28, 0.38) + vec3(0.06, 0.08, 0.08) * fbm(vec2(p.x * 6.0, p.y * 10.0 + u_tid * 0.5));
     float vagband = smoothstep(0.6, 0.9, sin(y * 90.0 - u_tid * 1.5 + fbm(p * 4.0) * 3.0));
     hav = mix(hav, vec3(0.85, 0.9, 0.9), vagband * 0.35);
+    // En tumlare som rullar i ytan: först välver sig ryggen upp, sedan syns den låga,
+    // rundade ryggfenan, och så sjunker den igen. Lite skum runt där den bryter ytan.
+    if (u_tumlareA > 0.0) {
+      float r = u_tumlare.z;
+      vec2 d = (tc - u_tumlare.xy) * vec2(1.0, asp);
+      d.x *= u_tumlare.w;
+      float L = 0.11;
+      float synl = sin(3.1416 * clamp(r, 0.0, 1.0));
+      // Ryggen: den del som är över ytan flyttar sig framåt medan den rullar
+      float mitt = (r - 0.5) * L * 0.9;
+      float halv = L * 0.5 * synl;
+      // Bara den del av ryggen som är ovanför vattenlinjen syns, som en välvd båge
+      float rygg = smoothstep(1.0, 0.85, length(vec2((d.x - mitt) / max(halv, 1e-4), d.y / (0.017 * synl + 1e-4)))) * step(d.y, 0.0015);
+      // Fenan: låg, rundad och bakåtlutad, mitt på ryggen
+      float fr = clamp((r - 0.25) / 0.55, 0.0, 1.0);
+      float fh = 0.034 * sin(3.1416 * fr);
+      vec2 fq = vec2(d.x - mitt + 0.006, -d.y - 0.004 * synl);
+      float fy = fq.y / max(fh, 1e-4);
+      float fbredd = 0.019 * (1.0 - fy) * (0.6 + 0.4 * (1.0 - fy)) + 0.0015;
+      float fena = step(0.0, fq.y) * step(fy, 1.0) * smoothstep(fbredd, fbredd - 0.002, abs(fq.x + fq.y * 0.55 - 0.004));
+      vec3 gra = vec3(0.11, 0.13, 0.15);
+      vec3 hud = gra + vec3(0.22, 0.25, 0.28) * smoothstep(0.006, -0.002, d.y + 0.01 * synl) * rygg;
+      float tack = max(rygg, fena) * u_tumlareA;
+      hav = mix(hav, hud, tack);
+      // Skum längs vattenlinjen där ryggen bryter ytan
+      float linje = exp(-pow(d.y / 0.004, 2.0)) * smoothstep(halv + 0.025, halv, abs(d.x - mitt)) * (0.4 + 0.6 * brus(gl_FragCoord.xy * 0.35 + u_tid * 3.0));
+      hav = mix(hav, vec3(0.88, 0.92, 0.92), linje * synl * 0.75 * u_tumlareA);
+    }
     c = hav;
   }
 
@@ -265,7 +295,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_sand', 'u_rut', 'u_vag', 'u_tid', 'u_synlig', 'u_pp', 'u_kvist', 'u_pa', 'u_lyft', 'u_avtryck', 'u_fynd']);
+    const u = platser(gl, prog, ['u_res', 'u_sand', 'u_rut', 'u_vag', 'u_tid', 'u_synlig', 'u_pp', 'u_kvist', 'u_pa', 'u_lyft', 'u_avtryck', 'u_fynd', 'u_tumlare', 'u_tumlareA']);
 
     // ---------- Sanden ----------
     const N = SW * SH;
@@ -319,6 +349,45 @@ export default {
       if (t < 0 || t > 1) return { y: 0.1, kvar: 0 };
       const upp = t < 0.4 ? 1 - Math.pow(1 - t / 0.4, 2) : 1 - Math.pow((t - 0.4) / 0.6, 1.4);
       return { y: 0.12 + (vag.nar - 0.12) * upp, kvar: t < 0.9 ? 1 : 1 - (t - 0.9) / 0.1 };
+    }
+
+    // ---------- Tumlaren ----------
+    // Rör hon vid det djupa havet längst upp dyker en tumlare upp en stund efteråt och
+    // rullar i ytan två eller tre gånger på väg förbi, med ett mjukt pustande andetag
+    // varje gång den bryter ytan.
+    let tumlare = null, tumlareVila = 0;
+    function lockaTumlare(x) {
+      if (tumlare || tumlareVila > 0) return;
+      const rikt = x < 0.5 ? 1 : -1;
+      tumlare = { x: Math.min(0.85, Math.max(0.15, x + slump(-0.15, 0.15))), y: slump(0.045, 0.075), rikt, kvar: Math.random() < 0.5 ? 2 : 3, t: -slump(1.2, 2.4), pustat: false };
+      tumlareVila = 20;
+    }
+    function pust() {
+      const t = ctx.currentTime;
+      brusstot(ctx, ut, { frekvens: 900, q: 0.6, styrka: 0.06, langd: 0.09, nar: t });
+      brusstot(ctx, ut, { frekvens: 500, q: 0.8, styrka: 0.04, langd: 0.14, nar: t + 0.03 });
+    }
+    function tumlareRor(dt) {
+      tumlareVila -= dt;
+      const T = tumlare;
+      if (!T) return [0, 0, 0, 1, 0];
+      T.t += dt;
+      const RULL = 1.6, PAUS = 0.9;
+      if (T.t < 0) return [0, 0, 0, 1, 0];
+      const r = T.t / RULL;
+      if (r <= 1) {
+        if (!T.pustat && r > 0.3) { T.pustat = true; pust(); }
+        return [T.x, T.y, r, T.rikt, 1];
+      }
+      // Under ytan en stund, och lite längre fram
+      if (T.t > RULL + PAUS) {
+        T.kvar--;
+        if (T.kvar <= 0) { tumlare = null; return [0, 0, 0, 1, 0]; }
+        T.t = 0; T.pustat = false;
+        T.x += T.rikt * slump(0.12, 0.18);
+        T.y += slump(-0.008, 0.008);
+      }
+      return [T.x, T.y, 0, T.rikt, 0];
     }
 
     // ---------- Fynd ----------
@@ -497,6 +566,8 @@ export default {
     }
     fingrar(duk, {
       ner: (x, y) => {
+        // Ett tryck i det djupa havet längst upp lockar fram tumlaren
+        if (y / duk.clientHeight < 0.11) lockaTumlare(x / duk.clientWidth);
         if (pinne.nere) return;
         fingerTill(x, y);
         forra = null;
@@ -578,6 +649,9 @@ export default {
       gl.uniform2f(u.u_res, duk.width, duk.height);
       gl.uniform3f(u.u_vag, vagLage, vag.fro, vatten);
       gl.uniform4fv(u.u_fynd, fyndData);
+      const tm = tumlareRor(dt);
+      gl.uniform4f(u.u_tumlare, tm[0], tm[1], tm[2], tm[3]);
+      gl.uniform1f(u.u_tumlareA, tm[4]);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
       // Kvisten glider snabbt in under fingret och sänks
