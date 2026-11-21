@@ -29,6 +29,8 @@ uniform float u_sang;      // hur starkt skålen sjunger just nu
 uniform vec4 u_slag;       // x, y (relativt skålen), tid sedan slaget, styrka
 uniform float u_vinkel;    // var fingret gnider
 uniform float u_synlig;
+uniform float u_dans;      // hur mycket vattnet dansar när skålen sjungit starkt en stund
+uniform vec4 u_dropp[16];  // dropparna som hoppar: x, y, höjd, synlighet
 ${BRUS}
 
 void main() {
@@ -85,6 +87,14 @@ void main() {
     float sl = length(sd);
     float front = u_slag.z * 0.18;
     hojd += sin((sl - front) * 80.0) * exp(-pow((sl - front) * 22.0, 2.0)) * u_slag.w * exp(-u_slag.z * 0.8) * 0.18;
+    // När skålen sjungit starkt en stund börjar vattnet dansa vid kanten, där väggen
+    // svänger mest: ett fint rutmönster av små stående vågor, som i en riktig klangskål
+    float buk = pow(abs(cos(a * 2.0)), 3.0) * smoothstep(Ri - 0.07, Ri - 0.008, r);
+    // Rutorna följer kanten: en riktning in mot mitten och en längs kanten, lite ojämna
+    vec2 lok = vec2(r, a * Ri) + (vec2(brus(p * 60.0), brus(p * 60.0 + 7.0)) - 0.5) * 0.006;
+    float rutor = sin(lok.x * 430.0) * sin(lok.y * 430.0) * sin(t * 52.0);
+    rutor += 0.5 * sin(lok.x * 610.0 + 1.0) * sin(lok.y * 560.0) * sin(t * 47.0 + 1.0);
+    hojd += rutor * buk * u_dans * 0.0035;
     // Ljuset bryts i krusningarna
     float dh = dFdx(hojd) + dFdy(hojd);
     // Mörkt, blankt vatten där skålens glans speglas, och krusningar som fångar ljuset
@@ -94,6 +104,19 @@ void main() {
     vatten += vec3(0.8, 0.7, 0.55) * clamp(-dh * 70.0, 0.0, 1.0) * 0.08;
     vatten += vec3(0.9, 0.8, 0.7) * exp(-pow((r - 0.11) * 18.0, 2.0)) * pow(max(0.0, cos(a - 2.3)), 10.0) * 0.18;
     c = mix(c, vatten, smoothstep(Ri, Ri - 0.004, r));
+  }
+  // Dropparna som hoppar upp ur vattnet: en blank pärla och dess skugga på ytan, som
+  // hamnar längre bort ju högre droppen är
+  for (int i = 0; i < 16; i++) {
+    vec4 d = u_dropp[i];
+    if (d.w <= 0.0) continue;
+    vec2 skugga = d.xy + vec2(0.55, -0.8) * d.z * 0.6;
+    c *= 1.0 - 0.35 * d.w * exp(-dot(p - skugga, p - skugga) / 0.000012);
+    float rd = 0.0036 * (1.0 + d.z * 12.0);
+    vec2 q = (p - d.xy) / rd;
+    float parla = smoothstep(1.0, 0.75, length(q));
+    vec3 farg = vec3(0.14, 0.1, 0.07) + vec3(1.0, 0.92, 0.8) * exp(-dot(q - vec2(-0.35, 0.35), q - vec2(-0.35, 0.35)) * 6.0) * 0.9;
+    c = mix(c, farg, parla * d.w);
   }
 
   c *= u_synlig;
@@ -105,7 +128,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_sang', 'u_slag', 'u_vinkel', 'u_synlig']);
+    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_sang', 'u_slag', 'u_vinkel', 'u_synlig', 'u_dans', 'u_dropp']);
 
     // ---------- Klangen ----------
     const l = rumsLjud(0.95, 0.6);
@@ -139,7 +162,7 @@ export default {
     const Rpx = () => duk.clientWidth * 0.36;
     let gnider = false;
     let forraVinkel = null;
-    let vinkelFart = 0;
+    let vinkelFart = 0, gnidFart = 0;
     let fingerVinkel = 0;
     let slag = { x: 0, y: 0, t: 99, s: 0 };
     fingrar(duk, {
@@ -148,6 +171,13 @@ export default {
         const d = Math.hypot(x - cx, y - cy);
         gnider = Math.abs(d - Rpx()) < Rpx() * 0.25;
         forraVinkel = Math.atan2(cy - y, x - cx);
+        // Skålen klingar till så fort hon nuddar den, så att det hörs vad det är.
+        // Starkast på kanten, och lite mjukare inne i vattnet.
+        if (d < Rpx() * 1.25) {
+          const s = duk.clientWidth;
+          slag = { x: (x - cx) / s, y: (cy - y) / s, t: 0, s: 1 };
+          sla(d > Rpx() * 0.8 ? 0.9 : 0.6);
+        }
       },
       drag: (x, y, id, e) => {
         const [cx, cy] = centrum();
@@ -164,25 +194,50 @@ export default {
         forraVinkel = a;
         void e;
       },
-      upp: (x, y, id, { tryck }) => {
+      upp: () => {
         gnider = false;
         forraVinkel = null;
-        if (tryck) {
-          const [cx, cy] = centrum();
-          const d = Math.hypot(x - cx, y - cy);
-          if (d < Rpx() * 1.25) {
-            const s = duk.clientWidth;
-            slag = { x: (x - cx) / s, y: (cy - y) / s, t: 0, s: 1 };
-            sla(d > Rpx() * 0.8 ? 1 : 0.7);
-          }
-        }
       },
     }, { ett: true });
+
+    // ---------- Det dansande vattnet ----------
+    // Sjunger skålen starkt i några sekunder börjar vattnet dansa, och droppar hoppar upp
+    // från de fyra ställen vid kanten där väggen svänger mest
+    const DROPP = 16;
+    const dropp = Array.from({ length: DROPP }, () => ({ t: 0, T: 0 }));
+    const droppData = new Float32Array(DROPP * 4);
+    let dans = 0, droppAck = 0;
+    function hoppa() {
+      const d = dropp.find((q) => q.t >= q.T);
+      if (!d) return;
+      const v = Math.floor(Math.random() * 4) * Math.PI / 2 + slump(-0.22, 0.22);
+      const r0 = 0.305 - slump(0.006, 0.016);
+      const inat = slump(0.012, 0.05), sida = slump(-0.015, 0.015);
+      Object.assign(d, {
+        x: Math.cos(v) * r0, y: Math.sin(v) * r0,
+        vx: -Math.cos(v) * inat - Math.sin(v) * sida, vy: -Math.sin(v) * inat + Math.cos(v) * sida,
+        hmax: slump(0.008, 0.03), t: 0, T: slump(0.28, 0.55),
+      });
+    }
+    function dansa(dt) {
+      dans = klamp(dans + (sang > 0.72 ? dt / 4 : -dt / 1.5), 0, 1);
+      droppAck += dt * 22 * dans * dans;
+      while (droppAck >= 1) { droppAck -= 1; hoppa(); }
+      dropp.forEach((d, i) => {
+        if (d.t >= d.T) { droppData[i * 4 + 3] = 0; return; }
+        d.t += dt;
+        const f = Math.min(1, d.t / d.T);
+        droppData.set([d.x + d.vx * f, d.y + d.vy * f, 4 * d.hmax * f * (1 - f), 1 - mjuk(0.85, 1, f)], i * 4);
+      });
+    }
 
     // ---------- Ritslinga ----------
     const stoppa = slinga((tid, dt) => {
       // Gnidningen: lagom fart runt kanten bygger upp sången, som en fingertopp mot brons
-      const fart = vinkelFart / Math.max(dt, 1e-3);
+      // Farten jämnas ut över en kort stund, eftersom skärmen kan rita fler bilder än
+      // fingret hinner rapportera rörelser (till exempel 120 Hz-skärmar)
+      gnidFart += (vinkelFart / Math.max(dt, 1e-3) - gnidFart) * Math.min(1, dt * 7);
+      const fart = gnidFart;
       vinkelFart = 0;
       const lagom = gnider ? mjuk(0.5, 2.5, fart) * (1 - 0.4 * mjuk(8, 14, fart)) : 0;
       sang += (lagom * 1.0 - sang) * Math.min(1, dt * (lagom > sang ? 0.7 : 0.25));
@@ -203,6 +258,9 @@ export default {
       gl.uniform4f(u.u_slag, slag.x, slag.y, slag.t, slag.s);
       gl.uniform1f(u.u_vinkel, fingerVinkel);
       gl.uniform1f(u.u_synlig, mjuk(0, 2.5, tid));
+      dansa(dt);
+      gl.uniform1f(u.u_dans, dans);
+      gl.uniform4fv(u.u_dropp, droppData);
       ritaHelskarm(gl);
     });
 
