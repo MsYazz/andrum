@@ -341,6 +341,13 @@ export default {
       const Bx = 0.2, By = -0.05 + 0.1 * synlig;
       return { Bx, By, Tx: Bx + ux * LANGD, Ty: By + uy * LANGD };
     };
+    // Handtaget och nedersta delen av satsen, där det känns naturligt att hålla
+    let halls = null;
+    const narSkaftet = (x, y) => {
+      const S = stavEnd();
+      const kort = { Bx: S.Bx - S.ux * 0.02, By: S.By - S.uy * 0.02, Tx: S.Bx + S.ux * LANGD * 0.3, Ty: S.By + S.uy * LANGD * 0.3 };
+      return narStav(x, y, kort) < 0.075;
+    };
     const narStav = (x, y, S) => {
       const ax = S.Tx - S.Bx, ay = S.Ty - S.By;
       const t = klamp(((x - S.Bx) * ax + (y - S.By) * ay) / (ax * ax + ay * ay), 0, 1);
@@ -368,17 +375,24 @@ export default {
           const N = nyttLage(nytt.synlig);
           vinkel = NYTT_V;
           grepp.x = N.Bx + Math.cos(NYTT_V) * GREPP; grepp.y = N.By + Math.sin(NYTT_V) * GREPP;
+          mal.x = grepp.x; mal.y = grepp.y;
           nytt = null;
           brand = 1; tand = 0; tander = 0.0001; tandSpelat = false;
           forraPunkt = null;
+          halls = { dx: grepp.x - wx, dy: grepp.y - wy };
+          return;
         }
-        mal.x = wx; mal.y = wy;
+        // Blosset följer bara med när hon tar tag om skaftet. Då följer det fingret
+        // därifrån, utan att hoppa. Tryck någon annanstans lämnar det där det är.
+        if (narSkaftet(wx, wy)) halls = { dx: mal.x - wx, dy: mal.y - wy };
       },
       drag: (x, y) => {
+        if (!halls) return;
         const [wx, wy] = tillVarld(x, y);
-        mal.x = wx; mal.y = wy;
+        mal.x = wx + halls.dx; mal.y = wy + halls.dy;
       },
       upp: (x, y, id, { tryck }) => {
+        halls = null;
         // Ett tryck på stugan väcker dem som bor där. Efter ett litet tag tänds lampan,
         // och ett nytt tryck en stund senare får dem att somna om.
         const [wx, wy] = tillVarld(x, y);
