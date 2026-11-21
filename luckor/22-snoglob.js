@@ -29,6 +29,7 @@ uniform float u_tid;
 uniform vec2 u_mitt;
 uniform float u_spel;        // speldosan spelar (0..1)
 uniform float u_synlig;
+uniform float u_gran;        // tid sedan hon rörde vid granen
 ${BRUS}
 
 float mark(float x) { return -0.42 + 0.06 * cos(x * 2.2); }
@@ -91,13 +92,19 @@ void main() {
       if (lh > 0.82) {
         vec2 lf = fract(g * 26.0) - 0.5;
         vec3 lf3 = lh > 0.94 ? vec3(1.0, 0.85, 0.4) : lh > 0.88 ? vec3(1.0, 0.35, 0.25) : vec3(0.5, 0.7, 1.0);
-        in_ += lf3 * smoothstep(0.3, 0.0, length(lf)) * (0.6 + 0.4 * sin(u_tid * 2.0 + lh * 50.0));
+        // Rör hon vid granen går en våg av tindrande ljus nerifrån och upp
+        float fram = u_gran * 0.35;
+        float vag = exp(-pow((g.y - fram) * 9.0, 2.0)) * 1.4 + step(g.y, fram) * 0.35 * sin(u_tid * 9.0 + lh * 80.0);
+        vag *= exp(-max(u_gran - 2.0, 0.0) * 0.6);
+        in_ += lf3 * smoothstep(0.3, 0.0, length(lf)) * (0.6 + 0.4 * sin(u_tid * 2.0 + lh * 50.0) + max(vag, 0.0));
       }
     }
     vec2 st = g - vec2(0.0, 0.54);
     float stjarna = smoothstep(0.03, 0.0, abs(st.x) + abs(st.y) * 0.6) + smoothstep(0.03, 0.0, abs(st.y) + abs(st.x) * 0.6);
-    in_ += vec3(1.0, 0.85, 0.4) * clamp(stjarna, 0.0, 1.0);
-    in_ += vec3(1.0, 0.8, 0.4) * exp(-dot(st, st) * 300.0) * 0.3;
+    // När vågen når toppen lyser stjärnan upp en stund, med ett mjukt sken omkring
+    float stjarnLjus = smoothstep(1.3, 1.6, u_gran) * exp(-max(u_gran - 2.2, 0.0) * 0.5);
+    in_ += vec3(1.0, 0.85, 0.4) * clamp(stjarna * (1.0 + stjarnLjus), 0.0, 1.6);
+    in_ += vec3(1.0, 0.8, 0.4) * exp(-dot(st, st) * mix(300.0, 60.0, stjarnLjus)) * (0.3 + 0.5 * stjarnLjus);
     // Stugan: röd med vita knutar, snö på taket och ett varmt fönster
     vec2 h = (q - vec2(-0.27, gy + 0.005)) / 1.45;
     if (abs(h.x) < 0.16 && h.y > -0.02 && h.y < 0.17) {
@@ -208,7 +215,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const bak = program(gl, HELSKARM, BAK_FS);
-    const bu = platser(gl, bak, ['u_res', 'u_tid', 'u_mitt', 'u_spel', 'u_synlig']);
+    const bu = platser(gl, bak, ['u_res', 'u_tid', 'u_mitt', 'u_spel', 'u_synlig', 'u_gran']);
     const flingProg = program(gl, FLINGA_VS, FLINGA_FS);
     const fu = platser(gl, flingProg, ['u_H', 'u_mitt', 'u_synlig']);
     const glas = program(gl, HELSKARM, GLAS_FS);
@@ -440,6 +447,7 @@ export default {
 
     // ---------- Fingret ----------
     const tillVarld = (x, y) => [x / duk.clientWidth, (duk.clientHeight - y) / duk.clientWidth];
+    let granTid = 99;
     const tillKula = (wx, wy) => [(wx - mitt.x) / R, (wy - mitt.y) / R];
     let forra = null;
     fingrar(duk, {
@@ -472,8 +480,11 @@ export default {
         if (!tryck) return;
         const [wx, wy] = tillVarld(x, y);
         const [kx, ky] = tillKula(wx, wy);
-        // Foten och nyckeln drar upp speldosan, ett tryck på kulan ger en liten skakning
+        // Foten och nyckeln drar upp speldosan, ett tryck på granen får den att tindra,
+        // och ett tryck någon annanstans på kulan ger en liten skakning
+        const granMark = -0.42 + 0.06 * Math.cos(kx * 2.2);
         if (ky < -0.92 && ky > -1.45 && Math.abs(kx) < 1.25) dra();
+        else if (Math.abs(kx - 0.36) < 0.32 && ky > granMark - 0.02 && ky < granMark + 0.85) granTid = 0;
         else if (Math.hypot(kx, ky) < 1) skaka(0.5);
       },
     }, { ett: true });
@@ -561,6 +572,8 @@ export default {
       gl.uniform2f(bu.u_mitt, mitt.x, mitt.y);
       gl.uniform1f(bu.u_spel, spelNiva);
       gl.uniform1f(bu.u_synlig, synlig);
+      granTid += dt;
+      gl.uniform1f(bu.u_gran, granTid);
       ritaHelskarm(gl);
 
       gl.enable(gl.BLEND);
