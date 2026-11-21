@@ -211,19 +211,27 @@ export default {
       g.strokeRect(30, 30, S - 60, S - 60);
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      const kolumner = [NAMN.slice(0, 3), NAMN.slice(3)];
-      kolumner.forEach((kol, k) => {
-        const x = k === 0 ? S * 0.665 : S * 0.335;
-        const steg = (S - 84) / 3;
-        const y0 = k === 0 ? 42 + steg / 2 : 42 + steg;
-        kol.forEach((tecken, j) => {
-          const liten = SMA.has(tecken);
-          g.font = `900 ${liten ? 58 : 84}px "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", "Noto Sans CJK JP", serif`;
-          g.fillText(tecken, x + (liten ? 8 : 0), y0 + j * steg - (liten ? 6 : 0));
-          // Lite tjockare streck, som när tecknen är skurna i sten
-          g.lineWidth = liten ? 2 : 3;
-          g.strokeText(tecken, x + (liten ? 8 : 0), y0 + j * steg - (liten ? 6 : 0));
-        });
+      // Tecknen får var sin ruta innanför innerramen: tre i högra kolumnen och två i den
+      // vänstra. Varje tecken krymps vid behov så att det ryms i sin ruta.
+      const IN0 = 40, IN1 = S - 40, B = IN1 - IN0;
+      const rutor = [
+        ...[0, 1, 2].map((j) => [IN0 + B * 0.75, IN0 + B * (j + 0.5) / 3, B / 2, B / 3]),
+        ...[0, 1].map((j) => [IN0 + B * 0.25, IN0 + B * (j + 0.5) / 2, B / 2, B / 2]),
+      ];
+      const TYPSNITT = '"Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", "Noto Sans CJK JP", serif';
+      NAMN.forEach((tecken, n) => {
+        const [x, y, rb, rh] = rutor[n];
+        const liten = SMA.has(tecken);
+        let storlek = Math.min(rh, rb) * (liten ? 0.62 : 0.9);
+        g.font = `900 ${storlek}px ${TYPSNITT}`;
+        const bredd = g.measureText(tecken).width;
+        if (bredd > rb * 0.9) { storlek *= (rb * 0.9) / bredd; g.font = `900 ${storlek}px ${TYPSNITT}`; }
+        // Små tecken sitter uppe till höger i sin ruta, som i lodrät skrift
+        const dx = liten ? rb * 0.12 : 0, dy = liten ? -rh * 0.1 : 0;
+        g.fillText(tecken, x + dx, y + dy);
+        // Lite tjockare streck, som när tecknen är skurna i sten
+        g.lineWidth = liten ? 1.5 : 2.5;
+        g.strokeText(tecken, x + dx, y + dy);
       });
       return cv;
     }
