@@ -22,7 +22,62 @@ uniform vec2 u_rut;
 uniform vec3 u_varme;   // fingrets värme: x, y (0..1, y nedåt), styrka
 uniform float u_tid;
 uniform float u_synlig;
+uniform vec4 u_alg;      // älgen: x, riktning (1 eller -1), gångens fas, synlighet
 ${BRUS}
+
+// En kapsel: avstånd till en sträcka med radie som går från ra till rb
+float kap(vec2 p, vec2 a, vec2 b, float ra, float rb) {
+  vec2 pa = p - a, ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - mix(ra, rb, h);
+}
+float ell(vec2 p, vec2 c, vec2 r) { return (length((p - c) / r) - 1.0) * min(r.x, r.y); }
+
+// En älgko från sidan i skymningen: hög manke, långt huvud med tung mule och en liten
+// klocka under halsen, långa ben med ljusa underben. Hon går i fyrtakt, och
+// baklänges knäleder (hasorna) pekar bakåt. Allt i mankhöjder. Returnerar täckning
+// för kroppen (x) och de ljusa underbenen (y).
+vec2 alg(vec2 p, vec4 a) {
+  float H = 0.12;
+  float mark = 0.42 + 0.06 * sin(a.x * 3.1 + 1.0) + 0.04 * sin(a.x * 7.3) - 0.11;
+  vec2 q = (p - vec2(a.x, mark)) / H;
+  q.x *= a.y;
+  float ph = a.z * 6.2832;
+  float gung = 0.012 * sin(ph * 2.0);
+  vec2 g = q - vec2(0.0, gung);
+  float d = ell(g, vec2(-0.02, 0.71), vec2(0.4, 0.145));
+  d = min(d, ell(g, vec2(0.2, 0.83), vec2(0.21, 0.13)));     // manken
+  d = min(d, ell(g, vec2(-0.3, 0.74), vec2(0.15, 0.125)));     // korset
+  d = min(d, kap(g, vec2(0.33, 0.85), vec2(0.55, 0.83), 0.1, 0.07)); // halsen
+  float nick = 0.02 * sin(ph * 2.0 + 0.6);
+  vec2 hb = vec2(0.55, 0.85 + nick), hs = vec2(0.8, 0.68 + nick);
+  d = min(d, kap(g, hb, hs, 0.085, 0.07));                    // huvudet
+  d = min(d, ell(g, hs + vec2(0.01, -0.012), vec2(0.09, 0.075)));  // mulen
+  d = min(d, ell(g, vec2(0.52, 0.99 + nick), vec2(0.035, 0.075)));  // öronen
+  d = min(d, ell(g, vec2(0.48, 0.98 + nick), vec2(0.03, 0.07)));
+  d = min(d, kap(g, vec2(0.6, 0.73 + nick), vec2(0.6, 0.63 + nick), 0.022, 0.01)); // klockan
+  d = min(d, ell(g, vec2(-0.44, 0.73), vec2(0.035, 0.045)));   // svansen
+  // Benen: fyrtakt, vänster bak, vänster fram, höger bak, höger fram
+  float ljus = 1e9;
+  for (int i = 0; i < 4; i++) {
+    bool fram = i == 1 || i == 3;
+    float fas = ph + float(i) * 1.5708;
+    vec2 hoft = fram ? vec2(0.24 + (i == 3 ? 0.03 : 0.0), 0.63) : vec2(-0.3 + (i == 2 ? 0.03 : 0.0), 0.65);
+    float sving = sin(fas) * 0.32;
+    float lyft = max(0.0, cos(fas));
+    float a1 = sving + (fram ? 0.0 : -0.28);
+    vec2 kna = hoft + vec2(sin(a1), -cos(a1)) * 0.3;
+    float a2 = fram ? sving - 0.75 * lyft : sving + 0.32 + 0.4 * lyft;
+    vec2 hov = kna + vec2(sin(a2), -cos(a2)) * (fram ? 0.34 : 0.37);
+    hov.y = max(hov.y, 0.0);
+    d = min(d, kap(g, hoft, kna, fram ? 0.06 : 0.075, 0.035));
+    ljus = min(ljus, kap(g, kna, hov, 0.03, 0.022));
+  }
+  float kant = 0.012;
+  float kropp = smoothstep(kant, -kant, d);
+  float ben = smoothstep(kant, -kant, ljus) * (1.0 - kropp);
+  return vec2(kropp, ben) * a.w;
+}
 
 // Utsikten genom fönstret: kvällshimmel, snöiga kullar, granar och en stuga
 vec3 utsikt(vec2 p, float suddig) {
@@ -46,6 +101,12 @@ vec3 utsikt(vec2 p, float suddig) {
       float bredd = (1.0 - rel) * gh * 0.32 * (0.85 + 0.25 * sin(rel * 40.0 + fi));
       if (abs(p.x - gx) < bredd) c = vec3(0.025, 0.04, 0.05) + vec3(0.1, 0.12, 0.16) * step(0.6, fract(rel * 6.0)) * 0.4;
     }
+  }
+  // Älgen som ibland går förbi över snöfältet
+  if (u_alg.w > 0.0) {
+    vec2 al = alg(p, u_alg);
+    c = mix(c, vec3(0.045, 0.035, 0.03), al.x);
+    c = mix(c, vec3(0.2, 0.2, 0.22), al.y);
   }
   // Stugan med två varma fönster
   vec2 s = p - vec2(0.62, 0.36);
@@ -130,7 +191,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_frost', 'u_rut', 'u_varme', 'u_tid', 'u_synlig']);
+    const u = platser(gl, prog, ['u_res', 'u_frost', 'u_rut', 'u_varme', 'u_tid', 'u_synlig', 'u_alg']);
 
     // ---------- Frosten ----------
     const N = FW * FH;
@@ -266,6 +327,34 @@ export default {
     gnissel.connect(giF).connect(giG).connect(ut);
     l.kallor.push(rumston, gnid, gnissel, ...vind.kallor);
 
+    // ---------- Älgen ----------
+    // Då och då går en älgko förbi över snöfältet utanför. Ju mer igenfrostad rutan är,
+    // desto långsammare går hon, och när rutan nästan är täckt stannar hon nästan helt,
+    // så att man får smälta ett titthål för att se henne.
+    let alg = null, tillAlg = slump(15, 30), tackning = 0, tackTid = 0;
+    function algRor(dt) {
+      tackTid -= dt;
+      if (tackTid <= 0) {
+        let sum = 0, n = 0;
+        for (let i = 0; i < N; i += 37) { sum += Math.min(1, F[i]); n++; }
+        tackning = sum / n;
+        tackTid = 1;
+      }
+      if (!alg) {
+        tillAlg -= dt;
+        if (tillAlg <= 0) {
+          const hoger = Math.random() < 0.5;
+          alg = { x: hoger ? -0.15 : 1.15, rikt: hoger ? 1 : -1, fas: 0 };
+        }
+        return;
+      }
+      // Fem steg i sekunden blir för fort, en lugn älg tar knappt ett steg i sekunden
+      const fart = 0.06 * (1 - 0.92 * mjuk(0.55, 0.85, tackning));
+      alg.x += alg.rikt * fart * dt;
+      alg.fas += fart * dt / 0.11;
+      if (alg.x < -0.2 || alg.x > 1.2) { alg = null; tillAlg = slump(90, 160); }
+    }
+
     // ---------- Ritslinga ----------
     let knasterTid = 1;
     const stoppa = slinga((tid, dt) => {
@@ -298,6 +387,8 @@ export default {
       gl.uniform3f(u.u_varme, finger.x, finger.y, finger.varme);
       gl.uniform1f(u.u_tid, tid);
       gl.uniform1f(u.u_synlig, mjuk(0, 3, tid));
+      algRor(dt);
+      gl.uniform4f(u.u_alg, alg ? alg.x : 0, alg ? alg.rikt : 1, alg ? alg.fas : 0, alg ? 1 : 0);
       ritaHelskarm(gl);
     });
 
