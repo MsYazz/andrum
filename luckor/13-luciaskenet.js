@@ -40,6 +40,7 @@ uniform float u_ljus;       // hur starkt ljuset är just nu
 uniform float u_kvav;       // 0 brinner fritt, 1 nästan slocknad
 uniform vec4 u_dropp[${DROPPAR}];  // vinkel runt ljuset, var den började, längd, bredd
 uniform float u_topp;       // hur högt ljuset är nu, det brinner sakta ner
+uniform vec4 u_torn[5];     // stearintorn: vinkel runt ljuset, bredd (vinkel), toppens höjd, hur mjuk toppen är
 uniform float u_synlig;
 uniform vec2 u_ring;        // rökringen: tid sedan den släpptes, synlighet
 ${BRUS}
@@ -153,25 +154,35 @@ void main() {
   c = mix(c, lagfarg * 1.25, f * (1.0 - bas * 0.5));
   c += vec3(1.0, 0.95, 0.85) * karna * 0.6;
 
-  // Stelnat stearin som står kvar runt lågan, som tunna oregelbundna väggar. De blir
-  // högre ju längre ljuset har brunnit, är högst ute vid kanterna och lägst framtill,
-  // och lågan lyser igenom dem varmt. Framkanten skymmer lågans fot.
-  float vagg = clamp((0.42 - TOPP) * 0.6 + 0.11, 0.11, 0.17);
-  float xr = p.x / (LJ_B * ojamn);
-  if (abs(xr) < 1.0 && p.y > TOPP - 0.006) {
-    float utat = smoothstep(0.2, 0.92, abs(xr));
-    float klumpar = 0.62 + 0.38 * brus(vec2(p.x * 45.0, 3.0)) + 0.12 * sin(p.x * 140.0);
-    float sidan = 0.8 + 0.5 * brus(vec2(sign(p.x) * 3.0 + 1.0, 9.0));
-    float hojd = vagg * (0.15 + 0.85 * utat) * klumpar * sidan;
-    if (p.y < TOPP + hojd) {
-      float genom = exp(-length((p - veke) * vec2(1.0, 0.6)) * 9.0);
-      vec3 vaggF = vec3(0.86, 0.8, 0.7) * (0.3 + 0.45 * L) + vec3(1.0, 0.58, 0.24) * genom * 1.5 * L;
-      vaggF *= 0.85 + 0.25 * brus(vec2(p.x * 90.0, p.y * 28.0));
-      vaggF *= 1.0 - 0.3 * smoothstep(0.8, 1.0, abs(xr));
-      // Kanten överst är tunn och lyser mest
-      vaggF += vec3(1.0, 0.7, 0.35) * smoothstep(0.008, 0.0, TOPP + hojd - p.y) * 0.25 * L;
-      c = mix(c, vaggF, smoothstep(TOPP + hojd, TOPP + hojd - 0.003, p.y));
-    }
+  // Stearintorn ("winding sheets"): runnet stearin som har stelnat till tunna, ojämna
+  // fenor längs ljusets sidor. De står kvar när ljuset sjunker och sticker upp högre
+  // än toppen och veken. Ute vid kanterna syns de från sidan som smala fenor, framtill
+  // som breda, halvgenomskinliga skivor som lågan lyser igenom. Bakre torn skyms av lågan.
+  for (int i = 0; i < 5; i++) {
+    vec4 tn = u_torn[i];
+    if (tn.z <= 0.0) continue;
+    float bw = LJ_B * ojamn;
+    float xa = sin(tn.x - tn.y * 0.5) * bw, xb = sin(tn.x + tn.y * 0.5) * bw;
+    float x0 = min(xa, xb), x1 = max(xa, xb);
+    // Från sidan blir fenan smal, men aldrig tunnare än ett par millimeter
+    float mitt = (x0 + x1) * 0.5, halv = max((x1 - x0) * 0.5, 0.0035);
+    float u = (p.x - mitt) / halv;
+    if (abs(u) > 1.0 || p.y < TOPP - 0.01) continue;
+    // Toppen är ojämn och spetsig, och rundas och sjunker ihop när den mjuknar
+    float ojamnt = brus(vec2(u * 2.2 + tn.x * 13.0, 4.0)) - 0.5;
+    float form = mix(1.0 - 0.45 * u * u + 0.35 * ojamnt - 0.25 * smoothstep(0.5, 1.0, abs(u)), 1.0 - 0.8 * u * u, tn.w);
+    float hojd = (tn.z - TOPP) * form + 0.006;
+    if (p.y > TOPP + hojd) continue;
+    float fram = cos(tn.x);
+    float genom = exp(-length((p - veke) * vec2(1.0, 0.6)) * 10.0);
+    vec3 tf = vec3(0.86, 0.8, 0.7) * (0.3 + 0.45 * L) + vec3(1.0, 0.6, 0.26) * genom * 1.3 * L;
+    tf *= 0.85 + 0.25 * brus(vec2(p.x * 120.0 + float(i) * 9.0, p.y * 35.0));
+    // Kanten överst är tunnast och lyser mest, och en mjuk topp glöder lite extra
+    tf += vec3(1.0, 0.7, 0.35) * smoothstep(0.006, 0.0, TOPP + hojd - p.y) * (0.2 + 0.3 * tn.w) * L;
+    float tack = smoothstep(TOPP + hojd, TOPP + hojd - 0.0025, p.y) * smoothstep(1.0, 0.8, abs(u));
+    // Framtill är fenan halvgenomskinlig, baktill skyms den av lågan
+    tack *= fram > 0.0 ? mix(0.9, 0.6, fram) : 0.9 * (1.0 - f);
+    c = mix(c, tf, tack);
   }
   vec2 hd = (p - veke - vec2(-u_luta * 0.02, 0.05)) * vec2(1.0, 0.7);
   c += vec3(1.0, 0.6, 0.25) * exp(-dot(hd, hd) * 60.0) * 0.18 * L;
@@ -215,7 +226,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_luta', 'u_flamma', 'u_ljus', 'u_kvav', 'u_dropp', 'u_synlig', 'u_ring', 'u_topp']);
+    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_luta', 'u_flamma', 'u_ljus', 'u_kvav', 'u_dropp', 'u_synlig', 'u_ring', 'u_topp', 'u_torn']);
 
     // Världen: x i bredder från mitten, y uppåt från bordet
     const varld = (cx, cy) => [(cx - duk.clientWidth / 2) / duk.clientWidth, (duk.clientHeight * 0.7 - cy) / duk.clientWidth];
@@ -256,10 +267,38 @@ export default {
       : { v: 0, y: 0, langd: 0, bredd: 0, mal: 0, rinner: false });
     const droppData = new Float32Array(DROPPAR * 4);
     let nastaDroppe = slump(8, 18), aldsta = 4;
-    function nyDroppe() {
+    function nyDroppe(v = slump(-1.35, 1.35), y = topp) {
       const d = droppar[aldsta % DROPPAR];
       aldsta++;
-      Object.assign(d, { v: slump(-1.35, 1.35), y: topp, langd: 0.002, bredd: slump(0.08, 0.15), mal: slump(0.06, Math.min(0.35, topp - 0.03)), rinner: true });
+      Object.assign(d, { v, y, langd: 0.002, bredd: slump(0.08, 0.15), mal: slump(0.06, Math.min(0.35, topp - 0.03)), rinner: true, torn: Math.random() < 0.4 });
+    }
+
+    // Stearintornen: stelnat stearin som står kvar som fenor längs sidorna. Deras toppar
+    // stannar där de är medan ljuset sjunker, så de sticker upp allt högre. Blir ett torn
+    // för högt mjuknar toppen, sjunker ihop och skickar en ny droppe nedför utsidan. Där
+    // en droppe har stelnat kan ett nytt torn börja växa.
+    const tornen = [];
+    const nyttTorn = (v, ovan) => tornen.push({ v, b: slump(0.3, 0.7), y: topp + ovan, max: slump(0.05, 0.085), mjuk: 0, smalter: 0 });
+    nyttTorn(slump(0.95, 1.35), slump(0.035, 0.055));
+    nyttTorn(-slump(0.95, 1.35), slump(0.03, 0.05));
+    if (Math.random() < 0.6) nyttTorn(slump(-0.5, 0.5), slump(0.012, 0.022));
+    const tornData = new Float32Array(20);
+    function tornRor(dt) {
+      for (const t of tornen) {
+        const over = t.y - topp;
+        if (!t.smalter && over > t.max) {
+          // Toppen mjuknar och sjunker ihop, och smältan rinner ner längs utsidan
+          t.smalter = over * slump(0.35, 0.6);
+          nyDroppe(t.v + slump(-0.1, 0.1), t.y);
+        }
+        if (t.smalter) {
+          const steg = Math.min(t.smalter, dt * 0.005);
+          t.y -= steg; t.smalter -= steg;
+          t.mjuk = Math.min(1, t.mjuk + dt * 0.8);
+          if (t.smalter <= 1e-4) { t.smalter = 0; t.max = slump(0.05, 0.085); }
+        } else t.mjuk = Math.max(0, t.mjuk - dt * 0.05);
+      }
+      tornen.forEach((t, i) => { if (i < 5) tornData.set([t.v, t.b, t.y, t.mjuk], i * 4); });
     }
 
     // ---------- Ljud ----------
@@ -353,7 +392,11 @@ export default {
       for (const d of droppar) {
         if (!d.rinner) continue;
         d.langd += dt * 0.012 * Math.max(0.08, 1 - d.langd / d.mal);
-        if (d.langd > d.mal * 0.98) d.rinner = false;
+        if (d.langd > d.mal * 0.98) {
+          d.rinner = false;
+          // Där droppen har stelnat kan ett nytt torn börja växa, om det finns plats
+          if (d.torn && tornen.length < 5 && tornen.every((t) => Math.abs(t.v - d.v) > 0.5)) nyttTorn(d.v, 0.004);
+        }
       }
       droppar.forEach((d, i) => droppData.set([d.v, d.y, d.langd, d.bredd], i * 4));
 
@@ -375,6 +418,8 @@ export default {
       gl.uniform1f(u.u_kvav, kvav);
       gl.uniform4fv(u.u_dropp, droppData);
       gl.uniform1f(u.u_topp, topp);
+      tornRor(dt);
+      gl.uniform4fv(u.u_torn, tornData);
       gl.uniform1f(u.u_synlig, mjuk(0, 3, tid));
       ring.t += dt;
       gl.uniform2f(u.u_ring, ring.t, ring.t > 7 ? 0 : mjuk(0.1, 0.8, ring.t) * (1 - mjuk(2.5, 6.5, ring.t)));
