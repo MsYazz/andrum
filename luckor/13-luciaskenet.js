@@ -22,6 +22,7 @@ uniform float u_ljus;       // hur starkt ljuset är just nu
 uniform float u_kvav;       // 0 brinner fritt, 1 nästan slocknad
 uniform vec4 u_dropp[${DROPPAR}];  // x på ljuset (-1..1), längd, bredd, -
 uniform float u_synlig;
+uniform vec2 u_ring;        // rökringen: tid sedan den släpptes, synlighet
 ${BRUS}
 
 const float LJ_B = 0.07;     // halva ljusets bredd
@@ -121,6 +122,26 @@ void main() {
     float rok = exp(-pow((p.x - slinga) / (0.003 + hojd * 0.025), 2.0)) * smoothstep(0.0, 0.03, hojd) * exp(-hojd * 5.0);
     c += vec3(0.32, 0.3, 0.3) * rok * smoothstep(0.2, 0.8, u_kvav) * 0.5;
   }
+  // Släpper hon en nästan kvävd låga stiger en rökring från veken. Den ses lite snett
+  // från sidan, vidgas sakta medan den stiger, och löses upp.
+  if (u_ring.y > 0.0) {
+    float rt = u_ring.x;
+    vec2 rc = veke + vec2(sin(rt * 0.7) * 0.006, 0.07 + 0.2 * (1.0 - exp(-rt * 0.4)));
+    vec2 rr = vec2(0.011 + 0.007 * rt, (0.011 + 0.007 * rt) * 0.32);
+    vec2 q = p - rc;
+    float f = length(q / rr) - 1.0;
+    vec2 g = q / (rr * rr) / max(length(q / rr), 1e-4);
+    float avst = f / max(length(g), 1e-4);
+    float tjock = 0.0035 + 0.002 * rt;
+    float vinkel = atan(q.y / rr.y, q.x / rr.x);
+    float rok = exp(-pow(avst / tjock, 2.0)) * (0.5 + 0.5 * fbm(vec2(vinkel * 1.6 + rt * 0.3, rt * 0.4)));
+    // Bortre halvan av ringen skymtar svagare
+    rok *= q.y > 0.0 ? 0.6 : 1.0;
+    // En tunn stjälk av rök från veken upp till ringen i början
+    float stjalk = exp(-pow((p.x - veke.x - sin((p.y - veke.y) * 60.0 - rt * 3.0) * 0.003) / 0.0018, 2.0))
+                 * step(veke.y + 0.008, p.y) * step(p.y, rc.y - rr.y) * exp(-rt * 1.5);
+    c += vec3(0.3, 0.29, 0.29) * (rok + stjalk * 0.5) * u_ring.y * 0.32;
+  }
 
   c *= u_synlig;
   frag = vec4(dither(c, gl_FragCoord.xy, t), 1.0);
@@ -131,7 +152,7 @@ export default {
     const gl = skapaGL(duk);
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
-    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_luta', 'u_flamma', 'u_ljus', 'u_kvav', 'u_dropp', 'u_synlig']);
+    const u = platser(gl, prog, ['u_res', 'u_tid', 'u_luta', 'u_flamma', 'u_ljus', 'u_kvav', 'u_dropp', 'u_synlig', 'u_ring']);
 
     // Världen: x i bredder från mitten, y uppåt från bordet
     const varld = (cx, cy) => [(cx - duk.clientWidth / 2) / duk.clientWidth, (duk.clientHeight * 0.7 - cy) / duk.clientWidth];
@@ -154,8 +175,13 @@ export default {
         finger.forra = { x, y, t: nu };
         [finger.x, finger.y] = varld(x, y);
       },
-      upp: () => { finger.nere = false; },
+      upp: () => {
+        finger.nere = false;
+        // Var lågan nästan kvävd stiger en rökring när hon släpper
+        if (kvav > 0.6 && ring.t > 4) ring = { t: 0 };
+      },
     }, { ett: true });
+    let ring = { t: 99 };
 
     // Stelnade droppar längs ljuset, och en som ibland rinner
     const droppar = Array.from({ length: DROPPAR }, (_, i) => ({
@@ -245,6 +271,8 @@ export default {
       gl.uniform1f(u.u_kvav, kvav);
       gl.uniform4fv(u.u_dropp, droppData);
       gl.uniform1f(u.u_synlig, mjuk(0, 3, tid));
+      ring.t += dt;
+      gl.uniform2f(u.u_ring, ring.t, ring.t > 7 ? 0 : mjuk(0.1, 0.8, ring.t) * (1 - mjuk(2.5, 6.5, ring.t)));
       ritaHelskarm(gl);
     });
 
