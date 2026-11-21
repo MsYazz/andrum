@@ -2,7 +2,7 @@ import { rektangel, rullat, rullaTill, tillInnehall } from './lib/portratt.js';
 import { ljud, vaknaLjud, duns } from './lib/ljud.js';
 import { knack } from './lib/haptik.js';
 import { begarRorelse } from './lib/rorelse.js';
-import { visaIntro } from './lib/intro.js';
+import { visaIntro, utforskaForst } from './lib/intro.js';
 import { nyMilstolpe, visaKonfetti, tonaUtKonfetti } from './lib/konfetti.js';
 
 // Rummen som finns. Färgen är ljuset som strömmar ut genom dörren.
@@ -333,7 +333,10 @@ async function kliverUt() {
 
 lista.addEventListener('click', (e) => {
   const dorr = e.target.closest('.dorr');
-  if (dorr && !dorr.disabled) kliverIn(dorr);
+  if (!dorr || dorr.disabled || upptagen) return;
+  // Första gången visas kortet om att utforska, och luckan öppnas när hon går vidare
+  if (utforskaForst(() => kliverIn(dorr))) return;
+  kliverIn(dorr);
 });
 
 // Pilen går bakåt i historiken, precis som telefonens bakåtknapp. Båda landar i popstate.
