@@ -48,15 +48,18 @@ Små saker att upptäcka. De är tysta och mjuka, ger ingen poäng och behövs a
 
 | # | Rum | Påskägg | Hittas genom |
 |---|---|---|---|
+| 2 | Sandlådan | En sten lyfts och kan flyttas. Där den låg blir en grop kvar, och där den läggs ner sjunker den lite med en vall runt sig | Hålla fingret stilla på en sten i fem sekunder |
 | 6 | Fjällbäcken | En öring ställer sig i lä bakom fingerstenen, med huvudet mot strömmen, och pilar iväg när fingret rör sig | Hålla fingret stilla några sekunder |
 | 7 | Frostängen | En skogshare skuttar över ängen, sätter sig en stund och lämnar harspår i frosten | Stå still en halv minut |
 | 8 | Isfönstret | En älgko går långsamt förbi framför stugan, lämnar spår i snön och stannar två tredjedelar in. Hon kommer först när rutan har frostat igen | Smälta ett titthål |
 | 9 | Tjärnen | En fladdermus kommer ner och dricker i flykten ur månens spegelbild | Trycka på månen |
 | 11 | Tomteblosset | De som bor i stugan vaknar och tänder en lampa, och somnar om vid nästa tryck | Trycka på stugan |
 | 13 | Luciaskenet | En rökring stiger ur rökslingan | Kväva lågan nästan helt och släppa |
+| 16 | Tuschpenseln | En röd namnstämpel i katakana trycks i hörnet: ヴィヴァン till Vivan, annars アンドルム | Måla en sluten cirkel i ett drag, en ensō |
 | 17 | Klangskålen | Vattnet börjar dansa vid kanten och små droppar hoppar upp | Låta skålen sjunga starkt en stund |
 | 19 | Vindspelet | En talgoxe sätter sig på skivan och flyger när man rör skärmen eller telefonen | Låta allt vara stilla länge |
 | 20 | Strandkanten | Vågen lämnar ibland ett musselskal eller en liten sjöstjärna vid sin högsta linje | Vänta på vågorna |
+| 20 | Strandkanten | En tumlare rullar förbi i ytan med sin låga ryggfena och pustar | Trycka i det djupa havet längst upp |
 | 22 | Snögloben | Ljusen i granen tindrar i en våg uppåt och stjärnan lyser upp | Trycka på granen |
 
 ## Reserver

@@ -38,6 +38,7 @@ uniform vec4 u_sten[5];   // x, y, radie, frö
 uniform vec4 u_form[5];   // förlängning, vinkel, h3, h5
 uniform vec4 u_farg[5];   // r, g, b, platthet
 uniform int u_antal;
+uniform float u_lyft[5];  // hur högt en sten är lyft, 0 när den ligger
 uniform float u_tid;
 uniform float u_kvall;
 uniform float u_synlig;
@@ -109,10 +110,13 @@ void main() {
 
     // Kastad skugga, stenen räknas som en cirkel
     float rs = s.z * (1.0 + f.x) * 0.5;
-    vec2 ab = motLjus * rs * 1.3;
+    // En lyft sten kastar sin skugga längre bort, och skuggan blir mjukare
+    float lyft = u_lyft[i];
+    vec2 ab = motLjus * rs * (1.3 + 1.6 * lyft);
     float tt = clamp(dot(s.xy - g, ab) / dot(ab, ab), 0.0, 1.0);
-    float sd2 = length(g + ab * tt - s.xy);
-    float sk = smoothstep(rs * 0.95 + 3.0 + tt * 5.0, rs * 0.95 - 2.0, sd2) * (1.0 - tt * 0.55);
+    vec2 skMitt = s.xy + motLjus * rs * 1.1 * lyft;
+    float sd2 = length(g + ab * tt - skMitt);
+    float sk = smoothstep(rs * 0.95 + 3.0 + tt * 5.0 + lyft * 6.0, rs * 0.95 - 2.0 - lyft * 2.0, sd2) * (1.0 - tt * 0.55) * (1.0 - 0.3 * lyft);
     skugga = min(skugga, 1.0 - 0.62 * sk);
 
     float rMax = s.z * f.x * 1.2;
@@ -228,7 +232,7 @@ export default {
     if (!gl) return utanGL(scen);
     const prog = program(gl, HELSKARM, FS);
     const u = platser(gl, prog, [
-      'u_h', 'u_res', 'u_rut', 'u_sten', 'u_form', 'u_farg', 'u_antal', 'u_tid', 'u_kvall', 'u_synlig',
+      'u_h', 'u_res', 'u_rut', 'u_sten', 'u_form', 'u_farg', 'u_antal', 'u_tid', 'u_kvall', 'u_synlig', 'u_lyft',
     ]);
 
     // ---------- Sandens höjdfält ----------
@@ -508,19 +512,77 @@ export default {
       p.t = t;
     }
 
+    // ---------- Flytta stenar ----------
+    // Håller hon fingret stilla på en sten i fem sekunder lyfts den, och hon kan flytta
+    // den dit hon vill. Där den låg blir en grund grop kvar. När hon släpper sjunker den
+    // lite ner i sanden, med en liten vall av undanträngd sand runt sig.
+    const LYFT_TID = 5000;
+    function stenVid(x, y) { return stenar.find((st) => stenKant(st, x, y) < 0.5); }
+    function lyftSten(st) {
+      st.lyfts = true;
+      // Sanden under stenen blir en grund grop, och krattan kan nå dit igen
+      for (let y = Math.max(0, Math.floor(st.y - st.rMax - 2)); y <= Math.min(H - 1, Math.ceil(st.y + st.rMax + 2)); y++) {
+        for (let x = Math.max(0, Math.floor(st.x - st.rMax - 2)); x <= Math.min(W - 1, Math.ceil(st.x + st.rMax + 2)); x++) {
+          const i = y * W + x, d = stenKant(st, x, y);
+          if (d < 0.5) { mask[i] = 0; h[i] = BAS - A * 0.5 - 0.07 * Math.min(1, -d / 3); }
+        }
+      }
+      smutsig = true; rasar = 40;
+      tock();
+    }
+    function laggNer(st) {
+      st.lyfts = false;
+      // Stenen sjunker lite ner, och sanden den tränger undan lägger sig som en vall runt den
+      for (let y = Math.max(0, Math.floor(st.y - st.rMax - 6)); y <= Math.min(H - 1, Math.ceil(st.y + st.rMax + 6)); y++) {
+        for (let x = Math.max(0, Math.floor(st.x - st.rMax - 6)); x <= Math.min(W - 1, Math.ceil(st.x + st.rMax + 6)); x++) {
+          const i = y * W + x, d = stenKant(st, x, y);
+          if (d < 0.5) { mask[i] = 1; h[i] = BAS; }
+          else if (d < 4.5) h[i] += 0.12 * (1 - (d - 0.5) / 4) * (0.8 + 0.4 * Math.random());
+        }
+      }
+      smutsig = true; rasar = 40;
+      const t = ctx.currentTime;
+      klick(t, 0.25);
+    }
+    // Får stenen ligga här? Inte på en annan sten och inte utanför lådan.
+    function ledigt(st, x, y) {
+      if (x < st.rMax + 3 || x > W - st.rMax - 3 || y < st.rMax + 3 || y > H - st.rMax - 3) return false;
+      return stenar.every((o) => o === st || Math.hypot(o.x - x, o.y - y) > o.rMax + st.rMax + 2);
+    }
+    function stenUniform() {
+      gl.uniform4fv(u.u_sten, fyll((st) => [st.x, st.y, st.r * (1 + 0.06 * (st.lyft || 0)), st.fro]));
+      const l = new Float32Array(MAX_STENAR);
+      stenar.forEach((st, i) => { l[i] = st.lyft || 0; });
+      gl.uniform1fv(u.u_lyft, l);
+    }
+
     duk.addEventListener('pointerdown', (e) => {
-      pekare.set(e.pointerId, nyttDrag(e.clientX / CELL, e.clientY / CELL, e.timeStamp));
+      const p = nyttDrag(e.clientX / CELL, e.clientY / CELL, e.timeStamp);
+      // Börjar fingret på en sten väntar vi och ser om hon håller kvar den
+      const st = stenVid(p.sx, p.sy);
+      if (st && !stenar.some((o) => o.lyfts)) p.kandidat = { st, t: performance.now() };
+      pekare.set(e.pointerId, p);
       try { duk.setPointerCapture(e.pointerId); } catch {}
     });
     duk.addEventListener('pointermove', (e) => {
       const p = pekare.get(e.pointerId);
       if (!p) return;
+      const px = e.clientX / CELL, py = e.clientY / CELL;
+      if (p.bar) {
+        const st = p.bar;
+        const nx = px + p.ox, ny = py + p.oy;
+        if (ledigt(st, nx, ny)) { st.x = nx; st.y = ny; }
+        return;
+      }
+      // Rör hon fingret innan stenen lyfts blir det ett vanligt drag med krattan
+      if (p.kandidat && Math.hypot(px - p.sx, py - p.sy) > 1.5) p.kandidat = null;
       const lista = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
       for (const h2 of (lista.length ? lista : [e])) flytta(p, h2.clientX / CELL, h2.clientY / CELL, h2.timeStamp);
     });
     const slapp = (e) => {
       const p = pekare.get(e.pointerId);
-      if (p) kurva(p, p.m0x, p.m0y, p.r1x, p.r1y, p.r1x, p.r1y);
+      if (p && p.bar) laggNer(p.bar);
+      else if (p) kurva(p, p.m0x, p.m0y, p.r1x, p.r1y, p.r1x, p.r1y);
       pekare.delete(e.pointerId);
     };
     duk.addEventListener('pointerup', slapp);
@@ -572,6 +634,22 @@ export default {
       const tid = (nu - t0) / 1000;
 
       if (sopning) sopa(nu);
+      // Har hon hållit fingret stilla på en sten i fem sekunder lyfts den
+      for (const p of pekare.values()) {
+        if (p.kandidat && !p.bar && performance.now() - p.kandidat.t > LYFT_TID) {
+          const st = p.kandidat.st;
+          p.bar = st; p.ox = st.x - p.r1x; p.oy = st.y - p.r1y; p.kandidat = null;
+          lyftSten(st);
+        }
+      }
+      let lyftAndras = false;
+      for (const st of stenar) {
+        const mal = st.lyfts ? 1 : 0;
+        const fore = st.lyft || 0;
+        st.lyft = fore + (mal - fore) * 0.15;
+        if (Math.abs(st.lyft - fore) > 1e-4 || st.lyfts) lyftAndras = true;
+      }
+      if (lyftAndras) stenUniform();
       if (rasar > 0) { rasa(); rasar--; smutsig = true; }
       if (smutsig) {
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RED, gl.FLOAT, h);
