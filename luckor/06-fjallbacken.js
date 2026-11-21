@@ -96,7 +96,7 @@ float solkatter(vec2 p) {
 // bakåt mot stjärten. d är i skärmbredder relativt fisken, a är riktningen (0 = uppåt,
 // mot strömmen). Returnerar färg och täckning.
 vec4 oring(vec2 d, float a, float fas, float sim) {
-  float L = 0.15;
+  float L = 0.26;
   vec2 fw = vec2(sin(a), -cos(a)), sd = vec2(cos(a), sin(a));
   float lng = dot(d, fw), lat = dot(d, sd);
   float s = 0.5 - lng / L;
@@ -115,16 +115,16 @@ vec4 oring(vec2 d, float a, float fas, float sim) {
   float tack = max(kropp, max(stjart * 0.9, fen * 0.5));
   if (tack <= 0.0) return vec4(0.0);
   float sida = smoothstep(0.1, 1.0, al / max(w, 1e-4));
-  vec3 col = mix(vec3(0.25, 0.24, 0.16), vec3(0.47, 0.43, 0.27), sida);
+  vec3 col = mix(vec3(0.17, 0.15, 0.09), vec3(0.58, 0.48, 0.24), sida);
   col *= 1.0 - 0.15 * smoothstep(0.15, 0.0, s);
-  vec2 pc = vec2(lat, lng) * 230.0;
+  vec2 pc = vec2(lat, lng) / L * 34.0;
   vec2 pf = fract(pc) - 0.5;
   float prick = step(0.72, hash(floor(pc))) * smoothstep(0.32, 0.15, length(pf)) * step(s, 0.76);
   col = mix(col, vec3(0.08, 0.07, 0.05), prick * 0.8);
   col = mix(col, vec3(0.3, 0.28, 0.2), max(stjart, fen) * (1.0 - kropp));
   for (int i = 0; i < 2; i++) {
     float sg = i == 0 ? -1.0 : 1.0;
-    col = mix(col, vec3(0.04), smoothstep(0.0028, 0.0014, length(vec2(lat - sg * w * 0.6, (s - 0.09) * L))));
+    col = mix(col, vec3(0.04), smoothstep(0.0042, 0.002, length(vec2(lat - sg * w * 0.6, (s - 0.09) * L))));
   }
   return vec4(col, tack);
 }
@@ -165,7 +165,7 @@ void main() {
   // Öringen som står i lä bakom fingret, under vattenytan, med sin skugga på botten
   if (u_oringA.x > 0.0) {
     vec2 od = sc + n.xy * 0.006 - u_oring.xy;
-    vec4 sk = oring(od - vec2(0.012, -0.016), u_oring.z, u_oring.w, u_oringA.y);
+    vec4 sk = oring(od - vec2(0.016, -0.022), u_oring.z, u_oring.w, u_oringA.y);
     botten *= 1.0 - 0.35 * sk.a * u_oringA.x;
     vec4 fisk = oring(od, u_oring.z, u_oring.w, u_oringA.y);
     botten = mix(botten, fisk.rgb, fisk.a * u_oringA.x);
@@ -373,41 +373,82 @@ export default {
     // pilar den iväg nedströms.
     const oring = { lage: 'borta', x: 0, y: 0, v: 0, fas: 0, sim: 0, a: 0, vila: 0 };
     let stillaTid = 0, ref = null;
+    // Öringen kan aldrig simma under en sten som sticker upp ur vattnet. Kroppen räknas som
+    // några punkter från nosen till stjärten, och ingen av dem får komma in i en sten.
+    const HL = 5.4, MARG = 1.0;
+    const kroppPunkter = (x, y, v) => [-1, -0.5, 0, 0.5, 1].map((t) => [x + Math.sin(v) * HL * t, y - Math.cos(v) * HL * t]);
+    const fritt = (x, y, v) => kroppPunkter(x, y, v).every(([px, py]) => stenar.every((st) => Math.hypot(px - st.x, py - st.y) > st.r + MARG));
+    // Knuffar ut fisken ur en sten den har hamnat för nära
+    function utUrStenar() {
+      for (let k = 0; k < 3; k++) {
+        for (const [px, py] of kroppPunkter(oring.x, oring.y, oring.v)) {
+          for (const st of stenar) {
+            const dx = px - st.x, dy = py - st.y, d = Math.hypot(dx, dy) || 1e-3;
+            const in_ = st.r + MARG - d;
+            if (in_ > 0) { oring.x += (dx / d) * in_; oring.y += (dy / d) * in_; }
+          }
+        }
+      }
+    }
+    // Riktningen mot målet, böjd runt stenar som ligger i vägen
+    function vajRunt(dx, dy) {
+      let ux = dx, uy = dy;
+      for (const st of stenar) {
+        const ox = oring.x - st.x, oy = oring.y - st.y, d = Math.hypot(ox, oy) || 1e-3;
+        const rack = st.r + HL + 3;
+        if (d > rack) continue;
+        const k = (1 - d / rack) * 2.2;
+        // Bort från stenen, och åt det håll runt den som ligger närmast målet
+        const sida = Math.sign(ox * dy - oy * dx) || 1;
+        ux += (ox / d) * k + (-oy / d) * sida * k * 0.8;
+        uy += (oy / d) * k + (ox / d) * sida * k * 0.8;
+      }
+      const l = Math.hypot(ux, uy) || 1;
+      return [ux / l, uy / l];
+    }
     function oringRor(dt, tid) {
       oring.vila -= dt;
       // Hur länge fingret har legat stilla
       if (finger.nere && ref && Math.hypot(finger.x - ref.x, finger.y - ref.y) < 1.2) stillaTid += dt;
       else { stillaTid = 0; ref = finger.nere ? { x: finger.x, y: finger.y } : null; }
-      const lax = finger.x, lay = finger.y + FINGER_R + 4.5;
+      const lax = finger.x, lay = finger.y + FINGER_R + 8;
       if (oring.lage === 'borta') {
-        if (stillaTid > 5 && oring.vila <= 0 && lay < H - 4) {
-          Object.assign(oring, { lage: 'kommer', x: lax + slump(-8, 8), y: H + 8, v: 0, a: 0 });
+        if (stillaTid > 5 && oring.vila <= 0 && lay < H - 8 && fritt(lax, lay, 0)) {
+          Object.assign(oring, { lage: 'kommer', x: lax + slump(-8, 8), y: H + 14, v: 0, a: 0 });
         }
         return;
       }
       if (oring.lage !== 'flyr' && (!finger.nere || stillaTid === 0)) {
         oring.lage = 'flyr';
-        oring.v = slump(-0.7, 0.7) + Math.PI;
+        // Den pilar nedströms, åt ett håll där ingen sten står i vägen
+        const val = [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9].map((k) => Math.PI + k + slump(-0.15, 0.15));
+        oring.v = val.find((v) => [4, 8, 12].every((t) => fritt(oring.x + Math.sin(v) * t, oring.y - Math.cos(v) * t, v))) ?? val[0];
       }
       if (oring.lage === 'kommer' || oring.lage === 'star') {
         const sv = oring.lage === 'star' ? Math.sin(tid * 0.7) * 0.35 : 0;
         const dx = lax + sv - oring.x, dy = lay - oring.y, d = Math.hypot(dx, dy);
         const fart = oring.lage === 'kommer' ? Math.min(12, d * 2.5 + 1) : Math.min(4, d * 3);
-        if (d > 0.01) { oring.x += (dx / d) * Math.min(d, fart * dt); oring.y += (dy / d) * Math.min(d, fart * dt); }
-        const malV = oring.lage === 'kommer' && d > 1.5 ? Math.atan2(dx, -dy) : 0.06 * Math.sin(tid * 0.9);
+        let mx = 0, my = 0;
+        if (d > 0.01) {
+          [mx, my] = oring.lage === 'kommer' ? vajRunt(dx / d, dy / d) : [dx / d, dy / d];
+          oring.x += mx * Math.min(d, fart * dt); oring.y += my * Math.min(d, fart * dt);
+        }
+        const malV = oring.lage === 'kommer' && d > 1.5 ? Math.atan2(mx, -my) : 0.06 * Math.sin(tid * 0.9);
         oring.v += (malV - oring.v) * Math.min(1, dt * 3);
         oring.sim += ((oring.lage === 'kommer' ? 1 : 0.35) - oring.sim) * Math.min(1, dt * 2);
         oring.fas += dt * (oring.lage === 'kommer' ? 14 : 6);
         oring.a = Math.min(1, oring.a + dt * 1.5);
+        utUrStenar();
         if (oring.lage === 'kommer' && d < 0.4) oring.lage = 'star';
       } else {
         // Flyr: ett snabbt ryck nedströms och bort
         oring.x += Math.sin(oring.v) * 38 * dt;
         oring.y += -Math.cos(oring.v) * 38 * dt;
+        utUrStenar();
         oring.sim = 1.5;
         oring.fas += dt * 24;
         oring.a = Math.max(0, oring.a - dt * 1.6);
-        if (oring.a <= 0 || oring.y > H + 10 || oring.x < -10 || oring.x > W + 10) { oring.lage = 'borta'; oring.vila = 15; oring.a = 0; }
+        if (oring.a <= 0 || oring.y > H + 16 || oring.x < -10 || oring.x > W + 10) { oring.lage = 'borta'; oring.vila = 15; oring.a = 0; }
       }
     }
 
