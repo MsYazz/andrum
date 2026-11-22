@@ -95,7 +95,7 @@ uniform sampler2D u_spar;
 uniform vec2 u_res;
 uniform float u_tid;
 uniform vec4 u_bloss;     // blossets nedre ände x, y och övre ände x, y
-uniform float u_brand;    // hur långt ner glöden har kommit (1 längst upp, 0,4 vid handtaget)
+uniform float u_brand;    // hur långt ner glöden har kommit (1 längst upp, 0,33 vid handtaget)
 uniform vec4 u_nytt;      // ett nytt, otänt bloss i nederkanten: nedre och övre ände
 uniform float u_nyttA;    // hur synligt det nya blosset är
 uniform vec2 u_punkt;     // var glöden sitter
@@ -130,8 +130,8 @@ vec3 stav(vec3 c, vec2 p, vec2 B, vec2 T, float brand, float glod, float alfa) {
   if (d > 0.006) return c;
   vec3 f;
   float w;
-  // Handtaget är långt, nästan halva blosset, så att glöden aldrig kommer nära handen
-  if (h < 0.4) {
+  // Handtaget är långt, en tredjedel av blosset, så att glöden aldrig kommer nära handen
+  if (h < 0.33) {
     w = 0.0016;
     f = vec3(0.55, 0.57, 0.6) + vec3(0.35) * smoothstep(0.0012, 0.0, d);
   } else if (h < brand) {
@@ -314,8 +314,8 @@ export default {
     // satsen. När bara handtaget är kvar slocknar det, och ett nytt, otänt bloss glider
     // upp i nederkanten. Tar hon det tänds det av sig självt.
     const H = () => duk.clientHeight / duk.clientWidth;
-    const LANGD = 0.52;
-    const HANDTAG = 0.4;                    // handtagets del av blosset, där glöden slocknar
+    const LANGD = 0.63;
+    const HANDTAG = 0.33;                    // handtagets del av blosset, där glöden slocknar
     const BRINNTID = 35;                    // sekunder från toppen till handtaget
     // Fingret håller längst ner på handtaget, en bra bit från där glöden slocknar
     const GREPP = 0.012;                    // från handtagets ände till fingret
