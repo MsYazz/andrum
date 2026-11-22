@@ -4,7 +4,11 @@
 // alla är i takt igen efter en och en halv minut. Däremellan glider kulorna ut i ormar,
 // vågor och spiraler. Varje kula spelar en mjuk ton och lyser till när den passerar
 // mittlinjen på väg uppåt, så att melodin följer mönstret man ser.
-// Ett tryck samlar pendlarna och släpper dem i takt igen. Ett svep knuffar till dem.
+// Ett tryck samlar pendlarna och släpper dem i takt igen. Håller hon fingret stilla
+// saktar tiden in nästan till stillhet, så att hon kan stanna vid en form, och när hon
+// släpper fortsätter allt där det var. Drar hon fingret tvärs över pendlarna spelar
+// varje kula sin ton, som strängarna på en harpa. Ett svep upp eller ner knuffar till
+// dem, men knuffarna läker: varje pendel glider sakta tillbaka in i mönstret.
 
 import { skapaGL, program, platser, anpassa, HELSKARM, ritaHelskarm, utanGL } from '../lib/gl.js';
 import { brusKalla, rum } from '../lib/ljud.js';
@@ -108,6 +112,10 @@ export default {
     }));
     let start = 0;
     let samlar = 0;
+    // Pendlarnas egen klocka, som kan sakta in när hon håller fingret stilla
+    let ptid = 0, tidFart = 1;
+    // Läget i svängningen som alla pendlar hör hemma i, och som knuffar läker tillbaka till
+    let basFas = 0;
 
     // ---------- Ljud ----------
     const l = rumsLjud(1.2, 1.5);
@@ -129,15 +137,33 @@ export default {
     // ---------- Fingret ----------
     const tillVarld = (x, y) => [x / duk.clientWidth, (duk.clientHeight - y) / duk.clientWidth];
     let forra = null;
+    // Håller hon fingret ungefär stilla en halv sekund saktar tiden in. Fingret får darra.
+    const hall = { nere: false, x: 0, y: 0, t: 0, sveper: false };
+    const kolumn = (i) => 0.12 + (i / (N - 1)) * 0.76;
+    const senastHarpa = new Array(N).fill(0);
     fingrar(duk, {
-      ner: (x, y) => { forra = tillVarld(x, y); },
+      ner: (x, y) => {
+        forra = tillVarld(x, y);
+        Object.assign(hall, { nere: true, x, y, t: performance.now(), sveper: false });
+      },
       drag: (x, y) => {
         const [wx, wy] = tillVarld(x, y);
+        if (Math.hypot(x - hall.x, y - hall.y) > 28) hall.sveper = true;
         if (forra) {
           const dy = wy - forra[1];
-          // Knuffa pendlarna som fingret sveper förbi
           for (let i = 0; i < N; i++) {
-            const px = 0.12 + (i / (N - 1)) * 0.76;
+            const px = kolumn(i);
+            // Harpan: passerar fingret en pendel i sidled spelar kulan sin ton
+            if ((forra[0] - px) * (wx - px) < 0 && hall.sveper) {
+              const nu = performance.now();
+              if (nu - senastHarpa[i] > 120) {
+                senastHarpa[i] = nu;
+                ton(N - 1 - i, 0.75);
+                pendlar[i].glod = 1;
+                pendlar[i].amp = Math.min(AMP * 1.15, pendlar[i].amp + 0.006);
+              }
+            }
+            // Ett svep upp eller ner förbi en pendel knuffar till den
             if (Math.abs(px - wx) < 0.03) pendlar[i].knuff += dy * 6;
           }
         }
@@ -145,6 +171,7 @@ export default {
       },
       upp: (x, y, id, { tryck }) => {
         forra = null;
+        hall.nere = false;
         if (tryck) samlar = 1;
       },
     }, { ett: true });
@@ -154,21 +181,26 @@ export default {
     const stoppa = slinga((tid, dt) => {
       const H = duk.clientHeight / duk.clientWidth;
       const mitt = H * 0.5;
+      // Tiden saktar in när hon håller fingret stilla, och kommer långsamt igång igen
+      const haller = hall.nere && !hall.sveper && performance.now() - hall.t > 500;
+      tidFart += ((haller ? 0.03 : 1) - tidFart) * Math.min(1, dt * (haller ? 1.6 : 0.7));
+      ptid += dt * tidFart;
       // Att samla: alla glider mjukt till ytterläget och släpps i takt
       if (samlar > 0) {
         samlar -= dt * 0.8;
         for (const q of pendlar) {
           q.amp += (AMP - q.amp) * Math.min(1, dt * 3);
           const mal = Math.PI / 2;
-          const nu = ((q.w * (tid - start) + q.fas) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+          const nu = ((q.w * (ptid - start) + q.fas) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
           let diff = mal - nu;
           if (diff > Math.PI) diff -= Math.PI * 2;
           if (diff < -Math.PI) diff += Math.PI * 2;
           q.fas += diff * Math.min(1, dt * 3);
         }
         if (samlar <= 0) {
-          start = tid;
-          for (const q of pendlar) q.fas = Math.PI / 2;
+          start = ptid;
+          basFas = Math.PI / 2;
+          for (const q of pendlar) q.fas = basFas;
         }
       }
       pendlar.forEach((q, i) => {
@@ -178,8 +210,15 @@ export default {
           q.fas += q.knuff * 0.5;
           q.knuff = 0;
         }
-        q.amp *= Math.exp(-dt * 0.003);
-        const vinkel = q.w * (tid - start) + q.fas;
+        // Knuffarna läker: läget i svängningen och utslaget glider sakta tillbaka in i
+        // mönstret, så att ordningen alltid återvänder av sig själv
+        if (samlar <= 0) {
+          let skillnad = basFas - q.fas;
+          skillnad = Math.atan2(Math.sin(skillnad), Math.cos(skillnad));
+          q.fas += skillnad * Math.min(1, dt / 12);
+          q.amp += (AMP - q.amp) * Math.min(1, dt / 15);
+        }
+        const vinkel = q.w * (ptid - start) + q.fas;
         const y = Math.sin(vinkel);
         // En ton varje gång kulan passerar mittlinjen på väg uppåt, och då lyser den till.
         // Räknas i hela varv, så att ingen passage missas mellan två bildrutor.
