@@ -89,7 +89,7 @@ void main() {
     hojd += sin((sl - front) * 80.0) * exp(-pow((sl - front) * 22.0, 2.0)) * u_slag.w * exp(-u_slag.z * 0.8) * 0.18;
     // När skålen sjungit starkt en stund börjar vattnet dansa vid kanten, där väggen
     // svänger mest: ett fint rutmönster av små stående vågor, som i en riktig klangskål
-    float buk = pow(abs(cos(a * 2.0)), 3.0) * smoothstep(Ri - 0.07, Ri - 0.008, r);
+    float buk = (0.35 + 0.65 * pow(abs(cos(a * 2.0)), 1.5)) * smoothstep(Ri - 0.07, Ri - 0.008, r);
     // Rutorna följer kanten: en riktning in mot mitten och en längs kanten, lite ojämna
     vec2 lok = vec2(r, a * Ri) + (vec2(brus(p * 60.0), brus(p * 60.0 + 7.0)) - 0.5) * 0.006;
     float rutor = sin(lok.x * 430.0) * sin(lok.y * 430.0) * sin(t * 52.0);
@@ -247,7 +247,8 @@ export default {
     function hoppa() {
       const d = dropp.find((q) => q.t >= q.T);
       if (!d) return;
-      const v = Math.floor(Math.random() * 4) * Math.PI / 2 + slump(-0.22, 0.22);
+      // Runt hela kanten, med en svag tyngdpunkt vid de fyra ställen där väggen svänger mest
+      const v = Math.floor(Math.random() * 4) * Math.PI / 2 + (Math.random() + Math.random() - 1) * 1.3;
       const r0 = 0.305 - slump(0.006, 0.016);
       const inat = slump(0.012, 0.05), sida = slump(-0.015, 0.015);
       Object.assign(d, {
