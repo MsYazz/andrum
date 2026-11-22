@@ -34,8 +34,8 @@ float kap(vec2 p, vec2 a, vec2 b, float ra, float rb) {
 }
 float ell(vec2 p, vec2 c, vec2 r) { return (length((p - c) / r) - 1.0) * min(r.x, r.y); }
 
-// En älgko från sidan i skymningen: hög manke, långt huvud med tung mule och en liten
-// klocka under halsen, långa ben med ljusa underben. Hon går i fyrtakt, och
+// En älgtjur från sidan i skymningen: hög manke, långt huvud med tung mule, en liten
+// klocka under halsen, breda skovelhorn med taggar och långa ben med ljusa underben. Hon går i fyrtakt, och
 // baklänges knäleder (hasorna) pekar bakåt. Allt i mankhöjder. Returnerar täckning
 // för kroppen (x) och de ljusa underbenen (y).
 const float ALG_MARK = 0.2;   // snöfältet framför stugan där hon går, på jämn höjd
@@ -59,6 +59,22 @@ vec2 alg(vec2 p, vec4 a) {
   d = min(d, ell(g, vec2(0.48, 0.98 + nick), vec2(0.03, 0.07)));
   d = min(d, kap(g, vec2(0.6, 0.73 + nick), vec2(0.6, 0.63 + nick), 0.022, 0.01)); // klockan
   d = min(d, ell(g, vec2(-0.44, 0.73), vec2(0.035, 0.045)));   // svansen
+  // Hornen: en kort stång från huvudet ut i en bred skovel som lutar bakåt och uppåt,
+  // med taggar längs den övre kanten och en tagg framåt. Den bortre skoveln syns
+  // strax bakom och lite högre.
+  float horn = 1e9;
+  for (int k = 0; k < 2; k++) {
+    vec2 o = k == 0 ? vec2(0.0) : vec2(0.06, 0.03);
+    vec2 bas = vec2(0.5, 0.98 + nick) + o;
+    horn = min(horn, kap(g, bas, bas + vec2(-0.03, 0.06), 0.028, 0.03));
+    horn = min(horn, kap(g, bas + vec2(-0.02, 0.07), bas + vec2(-0.24, 0.17), 0.045, 0.07));
+    for (int t = 0; t < 4; t++) {
+      float ft = float(t);
+      vec2 rot = bas + vec2(-0.04 - ft * 0.065, 0.11 + ft * 0.045);
+      horn = min(horn, kap(g, rot, rot + vec2(-0.01 - ft * 0.012, 0.1 - ft * 0.01), 0.018, 0.007));
+    }
+    horn = min(horn, kap(g, bas + vec2(0.0, 0.05), bas + vec2(0.11, 0.1), 0.018, 0.007));
+  }
   // Benen: fyrtakt, vänster bak, vänster fram, höger bak, höger fram
   float ljus = 1e9;
   for (int i = 0; i < 4; i++) {
@@ -75,6 +91,8 @@ vec2 alg(vec2 p, vec4 a) {
     d = min(d, kap(g, hoft, kna, fram ? 0.06 : 0.075, 0.035));
     ljus = min(ljus, kap(g, kna, hov, 0.03, 0.022));
   }
+  // Hornen är ljusare, gråbruna, och ritas med de ljusa underbenen
+  ljus = min(ljus, horn);
   float kant = 0.012;
   float kropp = smoothstep(kant, -kant, d);
   float ben = smoothstep(kant, -kant, ljus) * (1.0 - kropp);
@@ -120,15 +138,17 @@ vec3 utsikt(vec2 p, float suddig) {
     float a0 = min(u_algSpar.x, u_algSpar.y), a1 = max(u_algSpar.x, u_algSpar.y);
     float steg = 0.13;
     for (int rad = 0; rad < 2; rad++) {
-      float ry = ALG_MARK + (rad == 0 ? -0.006 : 0.005);
+      float ry = ALG_MARK + (rad == 0 ? -0.009 : 0.007);
       float rx = p.x + (rad == 0 ? 0.0 : steg * 0.5);
       float cx = (floor(rx / steg) + 0.5) * steg - (rad == 0 ? 0.0 : steg * 0.5);
       if (cx > a0 && cx < a1) {
-        vec2 hd = (p - vec2(cx, ry)) / vec2(0.009, 0.0035);
-        float hov = smoothstep(1.0, 0.6, length(hd));
-        float kant = smoothstep(1.6, 1.0, length(hd)) * (1.0 - hov);
-        c = mix(c, vec3(0.13, 0.15, 0.24), hov * (rad == 0 ? 0.8 : 0.6));
-        c += vec3(0.08, 0.09, 0.12) * kant * step(0.0, hd.y);
+        // Djupa hovavtryck i snön: mörk blå skugga i botten och en upptrampad ljus kant
+        vec2 hd = (p - vec2(cx, ry)) / vec2(0.015, 0.006);
+        float hov = smoothstep(1.0, 0.55, length(hd));
+        float halo = smoothstep(1.9, 1.0, length(hd)) * (1.0 - hov);
+        c = mix(c, vec3(0.07, 0.09, 0.17), hov * (rad == 0 ? 0.92 : 0.75));
+        c = mix(c, c * 0.8, halo * step(hd.y, 0.0) * 0.6);
+        c += vec3(0.12, 0.13, 0.17) * halo * step(0.0, hd.y);
       }
     }
   }
@@ -347,41 +367,56 @@ export default {
     l.kallor.push(rumston, gnid, gnissel, ...vind.kallor);
 
     // ---------- Älgen ----------
-    // När rutan har frostat igen kommer en älgko långsamt gående över snöfältet framför
-    // stugan. Genom frosten skymtar man henne bara, så man får smälta ett titthål för att
-    // se henne. Hon lämnar spår i snön och stannar ungefär två tredjedelar in på rutan,
-    // där hon står kvar en lång stund innan hon går vidare.
+    // När rutan har frostat igen kommer en älgtjur långsamt gående över snöfältet framför
+    // stugan. Genom frosten skymtar man honom bara, så man får smälta ett titthål för att
+    // se honom. Han lämnar spår i snön och stannar ungefär två tredjedelar in på rutan.
+    // När hon har smält fram honom står han kvar en stund, och går sedan sakta vidare ut
+    // ur bilden. Under det här besöket kommer han inte tillbaka.
     let algSpar = [0, 0];
-    let alg = null, tillAlg = 45, tackning = 0, tackTid = 0;
+    let alg = null, tillAlg = 45, tackning = 0, tackTid = 0, algKlar = false;
     const ALG_FART = 0.018;
+    // Är frosten bortsmält där älgen står, så att hon kan se honom?
+    function algSyns() {
+      const asp = duk.clientHeight / duk.clientWidth;
+      let sum = 0, n = 0;
+      for (let k = 0; k < 5; k++) for (let j = 0; j < 4; j++) {
+        const x = alg.x + (k - 2) * 0.04, y = 0.2 + 0.03 + j * 0.035;
+        const gx = Math.round(x * FW), gy = Math.round((1 - y / asp) * FH);
+        if (gx < 0 || gx >= FW || gy < 0 || gy >= FH) continue;
+        sum += Math.min(1, F[gy * FW + gx]); n++;
+      }
+      return n > 0 && sum / n < 0.35;
+    }
     function algRor(dt) {
       tackTid -= dt;
       if (tackTid <= 0) {
         let sum = 0, n = 0;
         for (let i = 0; i < N; i += 37) { sum += Math.min(1, F[i]); n++; }
         tackning = sum / n;
-        tackTid = 1;
+        tackTid = 0.5;
+        if (alg && !alg.sedd && algSyns()) { alg.sedd = true; alg.gaVidare = slump(3, 6); }
       }
       if (!alg) {
+        if (algKlar) return;
         tillAlg -= dt;
         if (tillAlg <= 0 && tackning > 0.62) {
           const hoger = Math.random() < 0.5;
           const x = hoger ? -0.2 : 1.2;
-          alg = { x, rikt: hoger ? 1 : -1, fas: 0, stopp: hoger ? 0.67 : 0.33, star: 0, startX: x, gatt: false };
+          alg = { x, rikt: hoger ? 1 : -1, fas: 0, stopp: hoger ? 0.67 : 0.33, startX: x, gatt: false, sedd: false, gaVidare: 0 };
         }
         return;
       }
-      const vidStopp = !alg.gatt && Math.abs(alg.x - alg.stopp) < 0.005;
-      if (vidStopp && alg.star === 0) alg.star = slump(150, 240);
-      if (alg.star > 0) {
-        alg.star -= dt;
-        if (alg.star <= 0) { alg.gatt = true; alg.star = 0; }
-        return;
+      // Har hon sett honom står han kvar en stund och går sedan vidare
+      if (alg.sedd && !alg.gatt) {
+        alg.gaVidare -= dt;
+        if (alg.gaVidare <= 0) alg.gatt = true;
       }
+      const star = !alg.gatt && Math.abs(alg.x - alg.stopp) < 0.005;
+      if (star) return;
       alg.x += alg.rikt * ALG_FART * dt;
       if (!alg.gatt && (alg.x - alg.stopp) * alg.rikt > 0) alg.x = alg.stopp;
       alg.fas += ALG_FART * dt / 0.13;
-      if (alg.x < -0.3 || alg.x > 1.3) { alg = null; tillAlg = slump(300, 500); }
+      if (alg.x < -0.3 || alg.x > 1.3) { alg = null; algKlar = true; }
     }
 
     // ---------- Ritslinga ----------

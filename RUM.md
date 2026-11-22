@@ -51,7 +51,7 @@ Små saker att upptäcka. De är tysta och mjuka, ger ingen poäng och behövs a
 | 2 | Sandlådan | En sten lyfts och kan flyttas. Där den låg blir en grop kvar, och där den läggs ner sjunker den lite med en vall runt sig | Hålla fingret stilla på en sten i fem sekunder |
 | 6 | Fjällbäcken | En öring ställer sig i lä bakom fingerstenen, med huvudet mot strömmen, och pilar iväg när fingret rör sig | Hålla fingret stilla några sekunder |
 | 7 | Frostängen | En skogshare skuttar över ängen, sätter sig en stund och lämnar harspår i frosten | Stå still en halv minut |
-| 8 | Isfönstret | En älgko går långsamt förbi framför stugan, lämnar spår i snön och stannar två tredjedelar in. Hon kommer först när rutan har frostat igen | Smälta ett titthål |
+| 8 | Isfönstret | En älgtjur med skovelhorn går långsamt förbi framför stugan, lämnar spår i snön och stannar två tredjedelar in. Han kommer först när rutan har frostat igen, och när man har smält fram honom går han sakta vidare och kommer inte tillbaka under besöket | Smälta ett titthål |
 | 9 | Tjärnen | En fladdermus kommer ner och dricker i flykten ur månens spegelbild | Trycka på månen |
 | 11 | Tomteblosset | De som bor i stugan vaknar och tänder en lampa, och somnar om vid nästa tryck | Trycka på stugan |
 | 13 | Luciaskenet | En rökring stiger ur rökslingan | Kväva lågan nästan helt och släppa |
