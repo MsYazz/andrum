@@ -574,8 +574,9 @@ export default {
         if (ledigt(st, nx, ny)) { st.x = nx; st.y = ny; }
         return;
       }
-      // Rör hon fingret innan stenen lyfts blir det ett vanligt drag med krattan
-      if (p.kandidat && Math.hypot(px - p.sx, py - p.sy) > 1.5) p.kandidat = null;
+      // Fingret får darra och glida runt på stenen medan hon håller. Först när det lämnar
+      // stenen ordentligt blir det ett vanligt drag med krattan i stället.
+      if (p.kandidat && stenKant(p.kandidat.st, px, py) > 6) p.kandidat = null;
       const lista = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
       for (const h2 of (lista.length ? lista : [e])) flytta(p, h2.clientX / CELL, h2.clientY / CELL, h2.timeStamp);
     });

@@ -408,10 +408,13 @@ export default {
     }
     function oringRor(dt, tid) {
       oring.vila -= dt;
-      // Hur länge fingret har legat stilla
-      if (finger.nere && ref && Math.hypot(finger.x - ref.x, finger.y - ref.y) < 1.2) stillaTid += dt;
+      // Hur länge fingret har legat stilla. Ett darrigt finger räknas också som stilla,
+      // så länge det håller sig ungefär på samma ställe.
+      if (finger.nere && ref && Math.hypot(finger.x - ref.x, finger.y - ref.y) < 3.5) stillaTid += dt;
       else { stillaTid = 0; ref = finger.nere ? { x: finger.x, y: finger.y } : null; }
-      const lax = finger.x, lay = finger.y + FINGER_R + 8;
+      // Öringen ställer sig efter var fingret började, så att den inte skakar med fingret
+      const fx = ref ? ref.x : finger.x, fy = ref ? ref.y : finger.y;
+      const lax = fx, lay = fy + FINGER_R + 8;
       if (oring.lage === 'borta') {
         if (stillaTid > 5 && oring.vila <= 0 && lay < H - 8 && fritt(lax, lay, 0)) {
           Object.assign(oring, { lage: 'kommer', x: lax + slump(-8, 8), y: H + 14, v: 0, a: 0 });
