@@ -289,10 +289,6 @@ export default {
     // ---------- Ljud ----------
     const l = rumsLjud(1.2, 1.6);
     const { ctx, ut } = l;
-    const rumston = brusKalla('rosa');
-    const rF = ctx.createBiquadFilter(); rF.type = 'lowpass'; rF.frequency.value = 180;
-    const rG = ctx.createGain(); rG.gain.value = 0.03;
-    rumston.connect(rF).connect(rG).connect(ut);
     const fladder = brusKalla('rosa');
     const fF = ctx.createBiquadFilter(); fF.type = 'bandpass'; fF.frequency.value = 280; fF.Q.value = 0.7;
     const fG = ctx.createGain(); fG.gain.value = 0;
@@ -377,7 +373,7 @@ export default {
       musikTimer = setTimeout(spelaLucia, (slut + 0.5 + slump(60, 110)) * 1000);
     }
     musikTimer = setTimeout(spelaLucia, slump(4, 8) * 1000);
-    l.kallor.push(rumston, fladder, { stop: () => { clearTimeout(musikTimer); clearTimeout(kofTimer); } });
+    l.kallor.push(fladder, { stop: () => { clearTimeout(musikTimer); clearTimeout(kofTimer); } });
 
     // ---------- Ritslinga ----------
     let knappTid = slump(3, 9);
