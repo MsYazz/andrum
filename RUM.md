@@ -59,7 +59,6 @@ Små saker att upptäcka. De är tysta och mjuka, ger ingen poäng och behövs a
 | 17 | Klangskålen | Vattnet börjar dansa vid kanten och små droppar hoppar upp | Låta skålen sjunga starkt en stund |
 | 19 | Vindspelet | En talgoxe sätter sig på skivan och flyger när man rör skärmen eller telefonen | Låta allt vara stilla länge |
 | 20 | Strandkanten | Vågen lämnar ibland ett musselskal eller en liten sjöstjärna vid sin högsta linje | Vänta på vågorna |
-| 20 | Strandkanten | En tumlare rullar förbi i ytan med sin låga ryggfena och pustar | Trycka i det djupa havet längst upp |
 | 22 | Snögloben | Ljusen i granen tindrar i en våg uppåt och stjärnan lyser upp | Trycka på granen |
 
 ## Reserver
