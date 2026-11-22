@@ -168,6 +168,11 @@ export default {
       }
       pling = [];
     }
+    // Plinget går till efterklangen genom ett filter och med lägre nivå, så att den hårda
+    // ansatsen aldrig blir en brusig smäll i efterklangen
+    const nagelEko = ctx.createGain(); nagelEko.gain.value = 0.35;
+    const nagelEkoF = ctx.createBiquadFilter(); nagelEkoF.type = 'lowpass'; nagelEkoF.frequency.value = 1600;
+    nagelEko.connect(nagelEkoF).connect(eko);
     function nagel(styrka) {
       const t = ctx.currentTime;
       pling = [];
@@ -179,9 +184,9 @@ export default {
         o.frequency.value = GRUND * k;
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.linearRampToValueAtTime(a * styrka * NIVA * 0.9, t + 0.0015);
-        g.gain.setTargetAtTime(0.0001, t + 0.0015, tau);
-        o.connect(g); g.connect(ut); g.connect(eko);
+        g.gain.linearRampToValueAtTime(a * styrka * NIVA * 0.65, t + 0.003);
+        g.gain.setTargetAtTime(0.0001, t + 0.003, tau);
+        o.connect(g); g.connect(ut); g.connect(nagelEko);
         o.start(t); o.stop(t + tau * 8 + 0.05);
         pling.push(g);
       });
