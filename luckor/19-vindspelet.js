@@ -53,56 +53,61 @@ float ellips(vec2 p, vec2 c, vec2 r, float v) {
 }
 
 // En talgoxe från sidan: svart huvud med vit kind, gult bröst, olivgrön rygg, blågrå
-// vingar med ett vitt vingband och en lång, smal stjärt. Sitter den står den lite
-// framåtlutad på fötterna. Flyger den syns vingarna utbredda och slår. Allt i
-// kroppslängder, med fötterna i origo. Returnerar färg och täckning.
+// vingar med ett vitt vingband och en lång, smal stjärt. Sitter den är kroppen lätt
+// upprätt: bröstet och huvudet högt, ryggen sluttar bakåt och stjärten hänger ner bakom
+// fötterna. Flyger den syns vingarna utbredda och slår. Allt i kroppslängder, med
+// fötterna i origo. Returnerar färg och täckning.
 vec4 talgoxe(vec2 p, vec4 f, vec4 f2) {
-  float B = 0.048;
+  float B = 0.074;
   vec2 q = (p - f.xy) / B;
   q.x *= f.z;
   float flyg = f2.z;
   q.y -= 0.15 * flyg;
-  float kant = 0.035;
-  float kropp = ellips(q, vec2(0.0, 0.55), vec2(0.62, 0.4), mix(-0.4, -0.05, flyg));
-  vec2 hc = vec2(mix(0.52, 0.68, flyg), mix(0.95, 0.75, flyg));
-  float huvud = length(q - hc) - 0.27;
-  float nabb = kapsel(q, hc + vec2(0.24, -0.02), hc + vec2(0.4, -0.05), 0.04);
+  float kant = 0.03;
+  float lut = mix(0.55, -0.05, flyg);
+  vec2 kc = mix(vec2(0.0, 0.5), vec2(0.0, 0.55), flyg);
+  float kropp = ellips(q, kc, mix(vec2(0.5, 0.32), vec2(0.62, 0.4), flyg), lut);
+  vec2 hc = mix(vec2(0.4, 0.9), vec2(0.68, 0.75), flyg);
+  float huvud = length(q - hc) - 0.23;
+  float nabb = kapsel(q, hc + vec2(0.2, -0.01), hc + vec2(0.33, -0.04), 0.035);
   float stv = f.w * 0.5 * (1.0 - flyg);
-  vec2 stA = vec2(-0.5, 0.48), stB = stA + vec2(-cos(0.32 + stv), -sin(0.32 + stv)) * 0.72;
+  vec2 stA = mix(vec2(-0.34, 0.3), vec2(-0.5, 0.48), flyg);
+  vec2 stB = stA + vec2(-cos(0.8 + stv), -sin(0.8 + stv)) * 0.6;
   stB = mix(stB, vec2(-1.25, 0.6), flyg);
-  float stjart = kapsel(q, stA, stB, 0.085);
+  float stjart = kapsel(q, stA, stB, 0.075);
   // Vingen: ihopfälld längs sidan när den sitter, utbredd och slående i flykten
   float slag = sin(f2.y);
   float vinge = mix(
-    ellips(q, vec2(-0.2, 0.7), vec2(0.42, 0.15), -0.3),
+    ellips(q, vec2(-0.1, 0.5), vec2(0.38, 0.14), 0.62),
     ellips(q, vec2(0.0, 0.75 + 0.55 * slag), vec2(0.35, 0.5 + 0.3 * abs(slag)), 0.0),
     flyg);
-  float ben = min(kapsel(q, vec2(0.05, 0.2), vec2(0.0, 0.0), 0.03), kapsel(q, vec2(0.2, 0.2), vec2(0.22, 0.0), 0.03));
+  float ben = min(kapsel(q, vec2(0.02, 0.26), vec2(-0.02, 0.0), 0.028), kapsel(q, vec2(0.14, 0.26), vec2(0.15, 0.0), 0.028));
   ben = mix(ben, 9.0, flyg);
   float d = min(min(kropp, huvud), min(min(nabb, stjart), min(vinge, ben)));
   float a = smoothstep(kant, -kant, d);
   if (a <= 0.0) return vec4(0.0);
-  // Färgerna: olivgrön rygg, gult bröst framtill och nedtill
+  // Färgerna: olivgrön rygg, gult bröst och buk framtill och nedtill
   vec3 col = vec3(0.4, 0.44, 0.22);
-  float brost = smoothstep(0.15, -0.1, ellips(q, vec2(0.2, 0.3), vec2(0.5, 0.36), -0.45));
+  float brost = smoothstep(0.12, -0.08, ellips(q, kc + vec2(0.16, -0.1), vec2(0.44, 0.26), lut));
   col = mix(col, vec3(0.93, 0.8, 0.22), brost);
-  // Den svarta strimman längs bröstet syns i framkanten
-  col = mix(col, vec3(0.05), smoothstep(-0.07, -0.02, kropp) * step(0.25, q.x) * step(q.y, 0.75) * brost);
+  // Den svarta strimman längs bröstets mitt syns i framkanten, från haklappen och nedåt
+  float framkant = smoothstep(-0.09, -0.03, kropp) * step(0.12, q.x) * step(q.y, 0.85);
+  col = mix(col, vec3(0.05), framkant * brost);
   // Huvudet: svart hätta och haklapp, med en stor vit kind som går bakåt
   float hd = smoothstep(kant, -kant, huvud);
   col = mix(col, vec3(0.04, 0.04, 0.05), hd);
-  col = mix(col, vec3(0.04, 0.04, 0.05), smoothstep(0.02, -0.02, ellips(q, hc + vec2(0.08, -0.32), vec2(0.17, 0.13), 0.3)));
-  float kind = smoothstep(0.02, -0.02, ellips(q, hc + vec2(-0.04, -0.07), vec2(0.21, 0.12), -0.15));
+  col = mix(col, vec3(0.04, 0.04, 0.05), smoothstep(0.02, -0.02, ellips(q, hc + vec2(0.08, -0.25), vec2(0.14, 0.11), 0.5)));
+  float kind = smoothstep(0.02, -0.02, ellips(q, hc + vec2(-0.03, -0.06), vec2(0.18, 0.1), -0.15));
   col = mix(col, vec3(0.94, 0.94, 0.9), kind * hd * (1.0 - flyg * 0.4));
   // Vingen: blågrå med ett vitt vingband, och stjärten blågrå
   float vg = smoothstep(kant, -kant, vinge);
   col = mix(col, vec3(0.38, 0.43, 0.52), vg);
-  col = mix(col, vec3(0.92, 0.93, 0.92), smoothstep(0.05, 0.02, abs(q.x + 0.12 - (q.y - 0.7) * 0.6)) * vg * (1.0 - flyg));
+  col = mix(col, vec3(0.92, 0.93, 0.92), smoothstep(0.045, 0.02, abs(q.x - 0.06 + (q.y - 0.55) * 0.7)) * vg * (1.0 - flyg));
   col = mix(col, vec3(0.3, 0.34, 0.42), smoothstep(kant, -kant, stjart) * (1.0 - smoothstep(kant, -kant, kropp)));
   col = mix(col, vec3(0.2, 0.2, 0.22), smoothstep(kant, -kant, nabb));
   col = mix(col, vec3(0.3, 0.3, 0.33), smoothstep(kant, -kant, ben));
   // Ögat glimmar i den svarta hättan
-  col += vec3(0.7) * smoothstep(0.05, 0.0, length(q - hc - vec2(0.13, 0.08))) * (1.0 - flyg);
+  col += vec3(0.7) * smoothstep(0.045, 0.0, length(q - hc - vec2(0.11, 0.07))) * (1.0 - flyg);
   // Skymningen: lite mörkare, varmt ljus underifrån
   col *= 0.72 + 0.15 * smoothstep(1.2, 0.0, q.y);
   return vec4(col, a * f2.x);

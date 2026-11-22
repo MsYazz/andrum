@@ -379,17 +379,19 @@ export default {
           nytt = null;
           brand = 1; tand = 0; tander = 0.0001; tandSpelat = false;
           forraPunkt = null;
-          halls = { dx: grepp.x - wx, dy: grepp.y - wy };
+          halls = { dx: grepp.x - wx, dy: grepp.y - wy, fx: wx, fy: wy };
           return;
         }
-        // Blosset följer bara med när hon tar tag om skaftet. Då följer det fingret
-        // därifrån, utan att hoppa. Tryck någon annanstans lämnar det där det är.
+        // Blosset följer bara med när hon tar tag om skaftet. Då glider handtaget mjukt
+        // in under fingret, så att hon alltid håller längst ner och aldrig nära glöden.
+        // Tryck någon annanstans lämnar det där det är.
         if (narSkaftet(wx, wy)) halls = { dx: mal.x - wx, dy: mal.y - wy };
+        if (halls) Object.assign(halls, { fx: wx, fy: wy });
       },
       drag: (x, y) => {
         if (!halls) return;
         const [wx, wy] = tillVarld(x, y);
-        mal.x = wx + halls.dx; mal.y = wy + halls.dy;
+        halls.fx = wx; halls.fy = wy;
       },
       upp: (x, y, id, { tryck }) => {
         halls = null;
@@ -480,6 +482,12 @@ export default {
       // Handen följer fingret mjukt och svajar lite av sig själv
       rorTid += dt;
       const svaj = 0.004 * Math.sin(rorTid * 1.3) + 0.002 * Math.sin(rorTid * 3.1);
+      if (halls) {
+        // Avståndet mellan fingret och handtagets grepp krymper till noll på en halv sekund
+        const kh = Math.min(1, dt * 6);
+        halls.dx -= halls.dx * kh; halls.dy -= halls.dy * kh;
+        mal.x = halls.fx + halls.dx; mal.y = halls.fy + halls.dy;
+      }
       const k = Math.min(1, dt * 22);
       const gx0 = grepp.x;
       grepp.x += (mal.x + svaj - grepp.x) * k;

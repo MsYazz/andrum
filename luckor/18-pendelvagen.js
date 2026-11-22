@@ -183,7 +183,9 @@ export default {
       const mitt = H * 0.5;
       // Tiden saktar in när hon håller fingret stilla, och kommer långsamt igång igen
       const haller = hall.nere && !hall.sveper && performance.now() - hall.t > 500;
-      tidFart += ((haller ? 0.03 : 1) - tidFart) * Math.min(1, dt * (haller ? 1.6 : 0.7));
+      // Inbromsningen är långsam, som en pendel som tappar fart: efter ett par sekunder
+      // har den kommit halvvägs, och efter fem, sex sekunder står allt nästan stilla
+      tidFart += ((haller ? 0.03 : 1) - tidFart) * Math.min(1, dt * (haller ? 0.45 : 0.7));
       ptid += dt * tidFart;
       // Att samla: alla glider mjukt till ytterläget och släpps i takt
       if (samlar > 0) {

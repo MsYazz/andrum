@@ -155,16 +155,17 @@ export default {
     // Ett kort pling, som när en nagel nuddar brons: hård ansats och kort klang, där de
     // ljusa deltonerna hörs mest och dör ut fortast. Själva sången kommer först när hon
     // gnider, och den tar en stund att sätta i rörelse.
-    const NAGEL = [[0.35, 0.3], [0.5, 0.16], [0.42, 0.09], [0.25, 0.055], [0.12, 0.035]];
-    // Ligger fingret kvar på skålen efter plinget dämpar det klangen snabbt, som när man
-    // lägger fingret mot en riktig skål. Släpper hon direkt klingar plinget ut fritt.
+    const NAGEL = [[0.35, 0.55], [0.5, 0.28], [0.42, 0.15], [0.25, 0.085], [0.12, 0.05]];
+    // Ligger fingret kvar på skålen en stund efter plinget dämpar det klangen, som när man
+    // lägger fingret mot en riktig skål. Ett vanligt tryck räknas inte som att hålla kvar,
+    // så släpper hon inom en tredjedels sekund klingar plinget ut fritt.
     let pling = [], plingTimer = 0, fingerNere = false;
     function dampaPling() {
       const t = ctx.currentTime;
       for (const g of pling) {
         g.gain.cancelScheduledValues(t);
         g.gain.setValueAtTime(g.gain.value, t);
-        g.gain.setTargetAtTime(0.0001, t, 0.035);
+        g.gain.setTargetAtTime(0.0001, t, 0.07);
       }
       pling = [];
     }
@@ -177,7 +178,7 @@ export default {
       const t = ctx.currentTime;
       pling = [];
       clearTimeout(plingTimer);
-      plingTimer = setTimeout(() => { if (fingerNere) dampaPling(); }, 120);
+      plingTimer = setTimeout(() => { if (fingerNere) dampaPling(); }, 350);
       DELAR.forEach(([k], i) => {
         const [a, tau] = NAGEL[i];
         const o = ctx.createOscillator();
