@@ -156,8 +156,23 @@ export default {
     // ljusa deltonerna hörs mest och dör ut fortast. Själva sången kommer först när hon
     // gnider, och den tar en stund att sätta i rörelse.
     const NAGEL = [[0.35, 0.3], [0.5, 0.16], [0.42, 0.09], [0.25, 0.055], [0.12, 0.035]];
+    // Ligger fingret kvar på skålen efter plinget dämpar det klangen snabbt, som när man
+    // lägger fingret mot en riktig skål. Släpper hon direkt klingar plinget ut fritt.
+    let pling = [], plingTimer = 0, fingerNere = false;
+    function dampaPling() {
+      const t = ctx.currentTime;
+      for (const g of pling) {
+        g.gain.cancelScheduledValues(t);
+        g.gain.setValueAtTime(g.gain.value, t);
+        g.gain.setTargetAtTime(0.0001, t, 0.035);
+      }
+      pling = [];
+    }
     function nagel(styrka) {
       const t = ctx.currentTime;
+      pling = [];
+      clearTimeout(plingTimer);
+      plingTimer = setTimeout(() => { if (fingerNere) dampaPling(); }, 120);
       DELAR.forEach(([k], i) => {
         const [a, tau] = NAGEL[i];
         const o = ctx.createOscillator();
@@ -168,6 +183,7 @@ export default {
         g.gain.setTargetAtTime(0.0001, t + 0.0015, tau);
         o.connect(g); g.connect(ut); g.connect(eko);
         o.start(t); o.stop(t + tau * 8 + 0.05);
+        pling.push(g);
       });
     }
 
@@ -190,6 +206,7 @@ export default {
         if (d < Rpx() * 1.25) {
           const s = duk.clientWidth;
           slag = { x: (x - cx) / s, y: (cy - y) / s, t: 0, s: 0.35 };
+          fingerNere = true;
           nagel(d > Rpx() * 0.8 ? 1 : 0.7);
         }
       },
@@ -211,6 +228,7 @@ export default {
       upp: () => {
         gnider = false;
         forraVinkel = null;
+        fingerNere = false;
       },
     }, { ett: true });
 
@@ -277,6 +295,6 @@ export default {
       ritaHelskarm(gl);
     });
 
-    return stangning({ ljud: l, stoppa, gl });
+    return stangning({ ljud: l, stoppa, gl, extra: [() => clearTimeout(plingTimer)] });
   },
 };
