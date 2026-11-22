@@ -95,7 +95,7 @@ uniform sampler2D u_spar;
 uniform vec2 u_res;
 uniform float u_tid;
 uniform vec4 u_bloss;     // blossets nedre ände x, y och övre ände x, y
-uniform float u_brand;    // hur långt ner glöden har kommit (1 längst upp, 0,2 vid handtaget)
+uniform float u_brand;    // hur långt ner glöden har kommit (1 längst upp, 0,4 vid handtaget)
 uniform vec4 u_nytt;      // ett nytt, otänt bloss i nederkanten: nedre och övre ände
 uniform float u_nyttA;    // hur synligt det nya blosset är
 uniform vec2 u_punkt;     // var glöden sitter
@@ -130,7 +130,8 @@ vec3 stav(vec3 c, vec2 p, vec2 B, vec2 T, float brand, float glod, float alfa) {
   if (d > 0.006) return c;
   vec3 f;
   float w;
-  if (h < 0.2) {
+  // Handtaget är långt, nästan halva blosset, så att glöden aldrig kommer nära handen
+  if (h < 0.4) {
     w = 0.0016;
     f = vec3(0.55, 0.57, 0.6) + vec3(0.35) * smoothstep(0.0012, 0.0, d);
   } else if (h < brand) {
@@ -313,7 +314,8 @@ export default {
     // satsen. När bara handtaget är kvar slocknar det, och ett nytt, otänt bloss glider
     // upp i nederkanten. Tar hon det tänds det av sig självt.
     const H = () => duk.clientHeight / duk.clientWidth;
-    const LANGD = 0.46;
+    const LANGD = 0.52;
+    const HANDTAG = 0.4;                    // handtagets del av blosset, där glöden slocknar
     const BRINNTID = 35;                    // sekunder från toppen till handtaget
     // Fingret håller längst ner på handtaget, en bra bit från där glöden slocknar
     const GREPP = 0.012;                    // från handtagets ände till fingret
@@ -345,7 +347,7 @@ export default {
     let halls = null;
     const narSkaftet = (x, y) => {
       const S = stavEnd();
-      const kort = { Bx: S.Bx - S.ux * 0.02, By: S.By - S.uy * 0.02, Tx: S.Bx + S.ux * LANGD * 0.3, Ty: S.By + S.uy * LANGD * 0.3 };
+      const kort = { Bx: S.Bx - S.ux * 0.02, By: S.By - S.uy * 0.02, Tx: S.Bx + S.ux * LANGD * HANDTAG, Ty: S.By + S.uy * LANGD * HANDTAG };
       return narStav(x, y, kort) < 0.075;
     };
     const narStav = (x, y, S) => {
@@ -473,8 +475,8 @@ export default {
         if (tander >= 1) tander = 0;
       }
       if (tand > 0 && tander === 0) {
-        brand -= (dt * 0.8) / BRINNTID;
-        if (brand <= 0.2) { brand = 0.2; tand = 0; fras(0.02, 0.8); nytt = { synlig: 0 }; }
+        brand -= (dt * (1 - HANDTAG)) / BRINNTID;
+        if (brand <= HANDTAG) { brand = HANDTAG; tand = 0; fras(0.02, 0.8); nytt = { synlig: 0 }; }
       }
       if (nytt) nytt.synlig = Math.min(1, nytt.synlig + dt / 1.8);
       const glod = mjuk(0.5, 2.5, tid) * tand;
@@ -514,11 +516,17 @@ export default {
         if (!tandSpelat) { tandSpelat = true; if (!tandLjud()) fras(0.035, 0.5); }
       }
 
-      // Nya gnistor från toppen, åt alla håll
+      // Nya gnistor från toppen, åt alla håll. Gnistor som flyger ner mot handen dör
+      // innan de hinner halvvägs dit, så att det aldrig känns som att hon bränner sig.
+      const tillHand = Math.atan2(grepp.y - topp.y, grepp.x - topp.x);
+      const tillHandAvst = Math.hypot(grepp.y - topp.y, grepp.x - topp.x);
       const antal = Math.round(slump(3, 7) * glod);
       for (let i = 0; i < antal; i++) {
         const a = Math.random() * Math.PI * 2, v = slump(0.25, 0.75);
-        spruta(topp.x, topp.y, Math.cos(a) * v, Math.sin(a) * v, slump(0.08, 0.28), 0);
+        let liv = slump(0.08, 0.28);
+        const motHand = Math.cos(a - tillHand);
+        if (motHand > 0) liv = Math.min(liv, (tillHandAvst * 0.45) / (v * motHand));
+        spruta(topp.x, topp.y, Math.cos(a) * v, Math.sin(a) * v, liv, 0);
       }
       let n = 0;
       for (const g of gnistor) {
