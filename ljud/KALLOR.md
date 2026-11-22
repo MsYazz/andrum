@@ -20,3 +20,4 @@ krav på att nämna upphovspersonen). De är Freesounds förhandslyssningsfiler 
 | `strand-hav.mp3` | Strandkanten (20) | "MareMio.wav" av Kigofix, 0:50 till 1:50, https://freesound.org/people/Kigofix/sounds/219120/ |
 | `strand-vag.mp3` | Strandkanten (20) | "Gentle Ocean Waves Loop" av kkenny101, https://freesound.org/people/kkenny101/sounds/852826/ |
 | `glod-brus.mp3` | Glöden (5) | "R09-67-Small Crackling Fire.wav" av craigsmith, https://freesound.org/people/craigsmith/sounds/483311/ |
+| `luckor/13-lucia-noter.js` | Luciaskenet (13) | Noterna till Sankta Lucia ur "Santa Lucia.mid" av Rabanus Flavus (Peter Gerloff), CC0, https://commons.wikimedia.org/wiki/File:Santa_Lucia.mid. Spelas med egna syntetiska klanger, lite långsammare |
