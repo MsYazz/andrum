@@ -312,46 +312,67 @@ export default {
     const fF = ctx.createBiquadFilter(); fF.type = 'bandpass'; fF.frequency.value = 280; fF.Q.value = 0.7;
     const fG = ctx.createGain(); fG.gain.value = 0;
     fladder.connect(fF).connect(fG).connect(ut);
-    // Sankta Lucia, svagt och långt bort, långsamt och spöklikt som på en musiksåg: en
-    // enda ren ton som glider mellan tonerna och får ett vibrato som växer på långa toner.
-    // Den spelar en gång, och efter en lång stunds tystnad igen.
+    // Sankta Lucia, svagt och långt bort, som någon som nynnar för sig själv i ett annat
+    // rum: en mjuk röst med stängd mun, nästan ett "mmm" som glider mot "ooh". Rösten har
+    // ett lätt vibrato bara på långa toner och först en stund in, små rörelser i tonhöjden,
+    // mjuka övergångar mellan tonerna och ett andetag i slutet av varje fras. Den nynnar
+    // en gång, och efter en lång stunds tystnad igen.
     const musik = ctx.createGain(); musik.gain.value = 1;
-    const musikF = ctx.createBiquadFilter(); musikF.type = 'lowpass'; musikF.frequency.value = 2200;
-    const musikEko = rum(4);
-    const ekoG = ctx.createGain(); ekoG.gain.value = 0.7;
-    musik.connect(musikF).connect(ut);
-    musikF.connect(musikEko).connect(ekoG).connect(ut);
-    const sagVag = ctx.createPeriodicWave(new Float32Array([0, 0, 0, 0]), new Float32Array([0, 1, 0.12, 0.035]));
-    const ATTONDEL = 0.5;
-    const NIVA = 0.011;
+    const musikEko = rum(3.5);
+    const ekoG = ctx.createGain(); ekoG.gain.value = 0.6;
+    musik.connect(ut);
+    musik.connect(musikEko).connect(ekoG).connect(ut);
+    // Rösten formas av filter: mest grundton och de närmaste övertonerna, med en mjuk
+    // nasal klang som när man nynnar med stängd mun
+    const mun = ctx.createBiquadFilter(); mun.type = 'lowpass'; mun.frequency.value = 820; mun.Q.value = 1.1;
+    const nasal = ctx.createBiquadFilter(); nasal.type = 'peaking'; nasal.frequency.value = 1050; nasal.Q.value = 2.5; nasal.gain.value = 4;
+    const brostklang = ctx.createBiquadFilter(); brostklang.type = 'peaking'; brostklang.frequency.value = 300; brostklang.Q.value = 1.2; brostklang.gain.value = 3;
+    mun.connect(nasal).connect(brostklang).connect(musik);
+    // Luften i rösten, som bara hörs svagt medan hon nynnar
+    const luft = brusKalla('rosa');
+    const luftF = ctx.createBiquadFilter(); luftF.type = 'bandpass'; luftF.frequency.value = 1400; luftF.Q.value = 0.8;
+    const luftG = ctx.createGain(); luftG.gain.value = 0;
+    luft.connect(luftF).connect(luftG).connect(musik);
+    l.kallor.push(luft);
+    const ATTONDEL = 0.4;
+    const NIVA = 0.022;
     let musikTimer = 0;
     function spelaLucia() {
       const t0 = ctx.currentTime + 0.4;
-      const o = ctx.createOscillator();
-      o.setPeriodicWave(sagVag);
-      const vib = ctx.createOscillator(); vib.frequency.value = 5.2;
+      const o = ctx.createOscillator(); o.type = 'sawtooth';
+      const vib = ctx.createOscillator(); vib.frequency.value = 5.1;
       const vibDjup = ctx.createGain(); vibDjup.gain.value = 0;
       vib.connect(vibDjup).connect(o.detune);
+      // En långsam, svag drift i tonhöjden, som i en riktig röst
+      const drift = ctx.createOscillator(); drift.frequency.value = 0.27;
+      const driftG = ctx.createGain(); driftG.gain.value = 5;
+      drift.connect(driftG).connect(o.detune);
       const g = ctx.createGain(); g.gain.value = 0;
-      o.connect(g).connect(musik);
+      o.connect(g).connect(mun);
       let t = t0;
       MELODI.forEach(([halvton, langd], i) => {
-        const f = 880 * Math.pow(2, halvton / 12);
-        const len = langd * ATTONDEL * slump(0.97, 1.04);
-        // Tonen glider dit, som när sågen böjs
+        const f = 440 * Math.pow(2, halvton / 12);
+        const len = langd * ATTONDEL * slump(0.97, 1.05);
         if (i === 0) o.frequency.setValueAtTime(f, t);
-        else o.frequency.setTargetAtTime(f, t, 0.07);
-        // En liten svacka i början av varje ton och sedan en mjuk svällning
-        g.gain.setTargetAtTime(NIVA * 0.55, t, 0.03);
-        g.gain.setTargetAtTime(NIVA * (0.85 + 0.15 * Math.min(1, langd / 4)), t + 0.06, 0.12);
-        // Vibratot växer på långa toner
-        vibDjup.gain.setTargetAtTime(6, t, 0.05);
-        vibDjup.gain.setTargetAtTime(langd >= 3 ? 32 : 16, t + 0.15, len * 0.35);
+        else o.frequency.setTargetAtTime(f, t, 0.035);
+        // Varje ton sväller mjukt fram, lite svagare i början
+        g.gain.setTargetAtTime(NIVA * 0.7, t, 0.04);
+        g.gain.setTargetAtTime(NIVA * (0.9 + 0.1 * Math.min(1, langd / 4)), t + 0.05, 0.1);
+        luftG.gain.setTargetAtTime(NIVA * 0.12, t, 0.08);
+        // Korta toner är raka. Bara långa toner får vibrato, och först efter en stund.
+        vibDjup.gain.setTargetAtTime(0, t, 0.04);
+        if (langd >= 3) vibDjup.gain.setTargetAtTime(15, t + 0.55, 0.25);
+        // I slutet av en fras klingar tonen av, och hon tar ett andetag
+        if (langd >= 4) {
+          g.gain.setTargetAtTime(NIVA * 0.12, t + len - 0.32, 0.08);
+          luftG.gain.setTargetAtTime(NIVA * 0.05, t + len - 0.32, 0.08);
+        }
         t += len;
       });
-      g.gain.setTargetAtTime(0, t, 0.5);
-      o.start(t0); vib.start(t0);
-      o.stop(t + 3); vib.stop(t + 3);
+      g.gain.setTargetAtTime(0, t, 0.4);
+      luftG.gain.setTargetAtTime(0, t, 0.4);
+      o.start(t0); vib.start(t0); drift.start(t0);
+      o.stop(t + 3); vib.stop(t + 3); drift.stop(t + 3);
       const sek = t - ctx.currentTime;
       musikTimer = setTimeout(spelaLucia, (sek + slump(45, 80)) * 1000);
     }
