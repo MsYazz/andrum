@@ -69,7 +69,9 @@ const RUM = {
     farg: '#c4b8e8',
     // En pipett snett uppifrån, som i en hand: gummiblåsan och kragen överst till höger,
     // glasröret med lite vätska som smalnar av nedåt vänster, och en droppe under spetsen
-    motiv: '<g transform="rotate(45 12 12)"><path d="M10 8V3.6a2 2 0 0 1 4 0V8z" class="fylld"/><path d="M9.2 8h5.6a1 1 0 0 1 0 2H9.2a1 1 0 0 1 0-2z" class="fylld"/><path d="M10.4 10v6.6l1.1 2.9h1l1.1-2.9V10"/><path d="M11.2 14.2l1.6-.9v3.2l-.5 1.6h-.6l-.5-1.6z" class="fylld"/></g><path d="M5.4 19.6c.9 1.1 1.4 1.8 1.4 2.4a1.4 1.4 0 0 1-2.8 0c0-.6.5-1.3 1.4-2.4z" class="fylld"/>',
+    // Linjerna är lite tunnare än på de andra dörrarna, eftersom pipetten har många små,
+    // fyllda delar som annars syns för mycket
+    motiv: '<g stroke-width="1.1"><g transform="rotate(45 12 12)"><path d="M10 8V3.6a2 2 0 0 1 4 0V8z" class="fylld"/><path d="M9.2 8h5.6a1 1 0 0 1 0 2H9.2a1 1 0 0 1 0-2z"/><path d="M10.4 10v6.6l1.1 2.9h1l1.1-2.9V10"/><path d="M11.2 14.2l1.6-.9v3.2l-.5 1.6h-.6l-.5-1.6z" class="fylld"/></g><path d="M5.4 19.6c.9 1.1 1.4 1.8 1.4 2.4a1.4 1.4 0 0 1-2.8 0c0-.6.5-1.3 1.4-2.4z" class="fylld"/></g>',
     ladda: () => import('./luckor/10-blackdroppen.js'),
   },
   11: {
