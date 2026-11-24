@@ -215,10 +215,10 @@ export default {
     const segel = { vinkel: 0 };
 
     let vindX = 0, vindZ = 0, by = 0, lutning = 0, lutningZ = 0;
-    // Lutning åt sidan blåser i sidled. Lutning mot eller från sig flyttar kläppen mot de
-    // främre eller bortre rören. Det är själva rörelsen som blåser: håller hon telefonen
-    // kvar i samma lutning lägger sig vinden efter några sekunder och spelet tystnar,
-    // eftersom utgångsläget sakta följer med dit hon håller telefonen.
+    // Lutningen drar kläppen åt det håll hon lutar, likadant åt alla håll, ungefär som
+    // tyngdkraften gör. Lutar hon och håller kvar lägger sig kläppen mot rören på den
+    // sidan och vilar där tyst. Utgångsläget är hur hon håller telefonen, och det följer
+    // mycket långsamt med om hon byter ställning.
     // Lutningen räknas som tyngdkraftens riktning i skärmens plan, inte som vinklar.
     // Vinklarna slår om från +90 till -90 grader när telefonen lutas helt åt sidan eller
     // hålls upprätt, och då blev varje liten darrning en ny vindby.
@@ -229,10 +229,10 @@ export default {
       tyngdX = Math.cos(beta * RAD) * Math.sin(gamma * RAD);
       tyngdY = Math.sin(beta * RAD);
       if (nollX === null) { nollX = tyngdX; nollY = tyngdY; }
-      nollX += (tyngdX - nollX) * 0.006;
-      nollY += (tyngdY - nollY) * 0.006;
-      lutning = klamp((tyngdX - nollX) / 0.64, -1, 1);
-      lutningZ = klamp((tyngdY - nollY) / 0.42, -1, 1);
+      nollX += (tyngdX - nollX) * 0.001;
+      nollY += (tyngdY - nollY) * 0.001;
+      lutning = klamp((tyngdX - nollX) / 0.5, -1, 1);
+      lutningZ = klamp((tyngdY - nollY) / 0.5, -1, 1);
     });
 
     // ---------- Ljud ----------
@@ -273,7 +273,7 @@ export default {
       // Då och då kommer en naturlig vindby
       byTid -= dt;
       if (byTid <= 0) { by += slump(0.35, 0.8) * (Math.random() < 0.5 ? -1 : 1); byTid = slump(6, 15); }
-      vindX = bris + lutning * 0.6 + by;
+      vindX = bris + by;
       vindZ = 0.12 * Math.sin(t * 0.31 + 2) + by * 0.4 * Math.sin(t * 3.1);
       by *= Math.exp(-dt * 1.2);
       const alla = [...ror, klapp];
@@ -281,8 +281,8 @@ export default {
         const yta = q === klapp ? 1.8 : 0.5;  // kläppen har seglet och tar mer vind
         q.vx += (-q.w2 * q.px - 0.5 * q.vx + vindX * yta * 0.35) * dt;
         q.vz += (-q.w2 * q.pz - 0.5 * q.vz + vindZ * yta * 0.35) * dt;
-        // Lutningen mot eller från sig drar kläppen dit, ungefär som tyngdkraften gör
-        if (q === klapp) q.vz += lutningZ * 0.9 * dt;
+        // Lutningen drar kläppen dit, lika mycket åt sidorna som framåt och bakåt
+        if (q === klapp) { q.vx += lutning * 0.9 * dt; q.vz += lutningZ * 0.9 * dt; }
         q.px += q.vx * dt; q.pz += q.vz * dt;
       }
       // Kläppen mot rören, i höjd med kläppen
