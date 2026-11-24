@@ -67,7 +67,8 @@ const RUM = {
   10: {
     namn: 'Bläckdroppen',
     farg: '#c4b8e8',
-    motiv: '<path d="M12 3c1.6 2.2 2.6 3.7 2.6 5a2.6 2.6 0 0 1-5.2 0c0-1.3 1-2.8 2.6-5z" class="fylld"/><path d="M12 12c-3 2-5 4-4 7 1 2 3 1 4-1 1 2 3 3 4 1 1-3-1-5-4-7z"/>',
+    // En pipett: gummiblåsan överst, glasröret som smalnar av och en droppe på väg ner
+    motiv: '<path d="M9.2 7V4.6a2.8 2.8 0 0 1 5.6 0V7z" class="fylld"/><path d="M8 7h8"/><path d="M10 7v7.5l1.4 4.5h1.2l1.4-4.5V7"/><path d="M10 11.5h4"/><path d="M12 20.4c.8 1 1.2 1.6 1.2 2.1a1.2 1.2 0 0 1-2.4 0c0-.5.4-1.1 1.2-2.1z" class="fylld"/>',
     ladda: () => import('./luckor/10-blackdroppen.js'),
   },
   11: {
