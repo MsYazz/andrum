@@ -216,14 +216,23 @@ export default {
 
     let vindX = 0, vindZ = 0, by = 0, lutning = 0, lutningZ = 0;
     // Lutning åt sidan blåser i sidled. Lutning mot eller från sig flyttar kläppen mot de
-    // främre eller bortre rören. Utgångsläget är hur hon håller telefonen, och det följer
-    // långsamt med om hon byter ställning.
-    let noll = null;
+    // främre eller bortre rören. Det är själva rörelsen som blåser: håller hon telefonen
+    // kvar i samma lutning lägger sig vinden efter några sekunder och spelet tystnar,
+    // eftersom utgångsläget sakta följer med dit hon håller telefonen.
+    // Lutningen räknas som tyngdkraftens riktning i skärmens plan, inte som vinklar.
+    // Vinklarna slår om från +90 till -90 grader när telefonen lutas helt åt sidan eller
+    // hålls upprätt, och då blev varje liten darrning en ny vindby.
+    let nollX = null, nollY = null;
+    let tyngdX = 0, tyngdY = 0;
+    const RAD = Math.PI / 180;
     const slutaLuta = lyssnaLutning((beta, gamma) => {
-      lutning = klamp(gamma / 40, -1, 1);
-      if (noll === null) noll = beta;
-      noll += (beta - noll) * 0.002;
-      lutningZ = klamp((beta - noll) / 25, -1, 1);
+      tyngdX = Math.cos(beta * RAD) * Math.sin(gamma * RAD);
+      tyngdY = Math.sin(beta * RAD);
+      if (nollX === null) { nollX = tyngdX; nollY = tyngdY; }
+      nollX += (tyngdX - nollX) * 0.006;
+      nollY += (tyngdY - nollY) * 0.006;
+      lutning = klamp((tyngdX - nollX) / 0.64, -1, 1);
+      lutningZ = klamp((tyngdY - nollY) / 0.42, -1, 1);
     });
 
     // ---------- Ljud ----------
@@ -247,6 +256,8 @@ export default {
     });
     const senastSlag = TONER.map(() => 0);
     function slaRor(i, kraft) {
+      // Vilar kläppen bara mot röret, eller nuddar det knappt, hörs ingenting
+      if (kraft < 0.06) return;
       const nu = performance.now();
       if (nu - senastSlag[i] < 70) return;
       senastSlag[i] = nu;
@@ -300,9 +311,11 @@ export default {
     // ---------- Talgoxen ----------
     // Har ingen rört skärmen eller telefonen på en lång stund flyger en talgoxe in, i
     // mesens studsande flykt, och sätter sig på skivan. Där vänder den sig ibland och
-    // vippar på stjärten. Rör hon skärmen, sveper eller lutar telefonen flyger den.
-    // Vindspelets egna byar skrämmer den inte.
-    let lugn = 0, fagel = null, fagelVila = 0, forraLut = [0, 0];
+    // vippar på stjärten. Rör hon skärmen eller lutar telefonen tydligt flyger den, men
+    // små darrningar i handen skrämmer den inte, och inte heller vindspelets egna byar.
+    const LUGN = 12;          // sekunder i stillhet innan talgoxen kommer
+    const SKRAMS = 0.17;      // ungefär tio graders vridning skrämmer den
+    let lugn = 0, fagel = null, fagelVila = 0, ref = null;
     function stord() { lugn = 0; if (fagel && fagel.lage !== 'flyr') fagelFlyr(); }
     function fagelFlyr() {
       Object.assign(fagel, { lage: 'flyr', t: 0, fx: fagel.x, fy: fagel.y, tx: fagel.x + fagel.rikt * slump(0.6, 0.9), ty: fagel.y + slump(0.4, 0.7) });
@@ -310,9 +323,13 @@ export default {
     function fagelRor(dt, sy) {
       lugn += dt;
       fagelVila -= dt;
-      if (Math.abs(lutning - forraLut[0]) > 0.06 || Math.abs(lutningZ - forraLut[1]) > 0.06) { forraLut = [lutning, lutningZ]; stord(); }
+      // Utgångsläget följer sakta med, så att långsam glidning i handen inte räknas
+      if (!ref) ref = { x: tyngdX, y: tyngdY };
+      if (Math.abs(tyngdX - ref.x) > SKRAMS || Math.abs(tyngdY - ref.y) > SKRAMS) { ref = { x: tyngdX, y: tyngdY }; stord(); }
+      const kf = Math.min(1, dt * 0.25);
+      ref.x += (tyngdX - ref.x) * kf; ref.y += (tyngdY - ref.y) * kf;
       if (!fagel) {
-        if (lugn > 25 && fagelVila <= 0) {
+        if (lugn > LUGN && fagelVila <= 0) {
           const fran = Math.random() < 0.5 ? -1 : 1;
           const tx = 0.5 + slump(-0.12, 0.12);
           fagel = { lage: 'kommer', t: 0, fx: fran < 0 ? -0.15 : 1.15, fy: sy + slump(0.25, 0.45), tx, ty: sy + 0.022, rikt: -fran, x: 0, y: 0, vipp: 0, vippT: slump(2, 5), vand: slump(4, 9), fas: 0 };
@@ -330,7 +347,7 @@ export default {
         F.x = F.fx + (F.tx - F.fx) * e;
         F.y = F.fy + (F.ty - F.fy) * e + bage + (F.lage === 'kommer' ? Math.sin(F.t * Math.PI) * 0.05 : 0);
         if (F.lage === 'kommer' && F.t >= 1) { F.lage = 'sitter'; F.x = F.tx; F.y = F.ty; }
-        if (F.lage === 'flyr' && F.t >= 1) { fagel = null; fagelVila = 60; return null; }
+        if (F.lage === 'flyr' && F.t >= 1) { fagel = null; fagelVila = 30; return null; }
         const glid = Math.sin(F.t * Math.PI * 4) < -0.3;
         return [F.x, F.y, F.rikt, 0, 1, glid ? 1.2 : F.fas, 1];
       }
