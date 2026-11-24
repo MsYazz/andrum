@@ -233,11 +233,11 @@ export default {
     }
 
     // ---------- Haren ----------
-    // Står hon stilla en lång stund skuttar en hare över ängen. Den sätter sig en stund
+    // Står hon stilla en stund, ungefär tolv sekunder, skuttar en hare över ängen. Den sätter sig en stund
     // på vägen med öronen uppe, och varje skutt lämnar harspår i frosten: två små
     // framtassar efter varandra, och de stora baktassarna framför, sida vid sida.
     const HOPP_L = 0.13, HOPP_T = 0.5;
-    let hareObj = null, stilla = 0, sedanHare = 60;
+    let hareObj = null, stilla = 0, sedanHare = 45;
     function nyHare() {
       const asp = duk.clientHeight / duk.clientWidth;
       const vanster = Math.random() < 0.5;
@@ -262,7 +262,7 @@ export default {
     function harenRor(dt) {
       stilla += dt;
       sedanHare += dt;
-      if (!hareObj && stilla > 30 && sedanHare > 90) nyHare();
+      if (!hareObj && stilla > 12 && sedanHare > 45) nyHare();
       const H = hareObj;
       if (!H) return;
       if (H.sittKvar > 0) {

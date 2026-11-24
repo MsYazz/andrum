@@ -367,7 +367,7 @@ export default {
     }, { ett: true });
 
     // ---------- Öringen ----------
-    // Håller hon fingret stilla en stund simmar en öring upp underifrån och ställer sig i
+    // Håller hon fingret stilla ett par sekunder simmar en öring upp underifrån och ställer sig i
     // lä bakom fingerstenen, med huvudet mot strömmen, så som öringar står bakom stenar.
     // Den håller sig kvar med lugna slag och små svaj. Rör hon fingret eller lyfter det
     // pilar den iväg nedströms.
@@ -416,7 +416,7 @@ export default {
       const fx = ref ? ref.x : finger.x, fy = ref ? ref.y : finger.y;
       const lax = fx, lay = fy + FINGER_R + 8;
       if (oring.lage === 'borta') {
-        if (stillaTid > 5 && oring.vila <= 0 && lay < H - 8 && fritt(lax, lay, 0)) {
+        if (stillaTid > 2.5 && oring.vila <= 0 && lay < H - 8 && fritt(lax, lay, 0)) {
           Object.assign(oring, { lage: 'kommer', x: lax + slump(-8, 8), y: H + 14, v: 0, a: 0 });
         }
         return;
@@ -451,7 +451,7 @@ export default {
         oring.sim = 1.5;
         oring.fas += dt * 24;
         oring.a = Math.max(0, oring.a - dt * 1.6);
-        if (oring.a <= 0 || oring.y > H + 16 || oring.x < -10 || oring.x > W + 10) { oring.lage = 'borta'; oring.vila = 15; oring.a = 0; }
+        if (oring.a <= 0 || oring.y > H + 16 || oring.x < -10 || oring.x > W + 10) { oring.lage = 'borta'; oring.vila = 8; oring.a = 0; }
       }
     }
 
